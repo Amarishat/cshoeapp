@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import { BrandRow } from "@/components/home/BrandRow";
 import { ProductRail } from "@/components/home/ProductRail";
 import { SectionHeader } from "@/components/home/SectionHeader";
+import { CardPlaceholder, CatalogueError } from "@/components/product/CatalogueStatus";
 import { ProductCard } from "@/components/product/ProductCard";
 import { getBrands, getProducts, type CatalogueProduct } from "@/lib/data/supabaseCatalog";
 import type { Brand } from "@/lib/types";
+import { useCatalogueLoad, type CatalogueLoadState } from "@/lib/useCatalogueLoad";
 
 /*
  * Home catalogue sections (brands and the three product sections), read from
@@ -22,11 +24,7 @@ const HOME_SECTIONS = {
 } as const;
 
 type HomeSections = Record<keyof typeof HOME_SECTIONS, CatalogueProduct[]>;
-
-type CatalogueState =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "ready"; brands: Brand[]; sections: HomeSections };
+type HomeCatalogue = { brands: Brand[]; sections: HomeSections };
 
 /** Picks each section's products in Home order; a missing product is an error, not a gap. */
 function toHomeSections(products: CatalogueProduct[]): HomeSections {
@@ -44,7 +42,15 @@ function toHomeSections(products: CatalogueProduct[]): HomeSections {
   };
 }
 
-const CatalogueContext = createContext<{ state: CatalogueState; retry: () => void } | null>(null);
+async function loadHomeCatalogue(): Promise<HomeCatalogue> {
+  const [brands, products] = await Promise.all([getBrands(), getProducts()]);
+  return { brands, sections: toHomeSections(products) };
+}
+
+const CatalogueContext = createContext<{
+  state: CatalogueLoadState<HomeCatalogue>;
+  retry: () => void;
+} | null>(null);
 
 function useHomeCatalogue() {
   const value = useContext(CatalogueContext);
@@ -54,49 +60,13 @@ function useHomeCatalogue() {
 
 /** Loads brands and products once for all Home catalogue sections. */
 export function HomeCatalogueProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<CatalogueState>({ status: "loading" });
-  const [attempt, setAttempt] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([getBrands(), getProducts()])
-      .then(([brands, products]) => {
-        if (!cancelled) setState({ status: "ready", brands, sections: toHomeSections(products) });
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setState({ status: "error", message: error instanceof Error ? error.message : String(error) });
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [attempt]);
-
-  function retry() {
-    setState({ status: "loading" });
-    setAttempt((n) => n + 1);
-  }
-
+  const { state, retry } = useCatalogueLoad(loadHomeCatalogue);
   return <CatalogueContext.Provider value={{ state, retry }}>{children}</CatalogueContext.Provider>;
 }
 
 // ---------------------------------------------------------------------------
 // Loading placeholders (same footprint as the real rows)
 // ---------------------------------------------------------------------------
-
-function CardPlaceholder() {
-  return (
-    <div aria-hidden className="animate-pulse">
-      <div className="aspect-[187/198] rounded-[20px] bg-surface" />
-      <div className="mt-[11px] flex flex-col gap-2 px-[15px]">
-        <div className="h-4 w-3/4 rounded bg-surface" />
-        <div className="h-3.5 w-1/2 rounded bg-surface" />
-        <div className="h-4 w-2/3 rounded bg-surface" />
-      </div>
-    </div>
-  );
-}
 
 function RailPlaceholder({ count, gap, topInset }: { count: number; gap: 13 | 15; topInset?: number }) {
   return (
@@ -120,7 +90,7 @@ export function HomeBrandsSection() {
     <section aria-labelledby="home-brands" aria-busy={state.status === "loading"} className="mt-10">
       <SectionHeader id="home-brands" title="Brands" />
       <div className="mt-6">
-        {state.status === "ready" && <BrandRow brands={state.brands} />}
+        {state.status === "ready" && <BrandRow brands={state.data.brands} />}
         {state.status === "loading" && (
           <ul aria-hidden className="flex gap-[11px] overflow-hidden px-gutter">
             {Array.from({ length: 7 }, (_, i) => (
@@ -128,19 +98,7 @@ export function HomeBrandsSection() {
             ))}
           </ul>
         )}
-        {state.status === "error" && (
-          <div role="alert" className="mx-gutter rounded-[15px] bg-surface px-4 py-4">
-            <p className="font-medium">Couldn’t load the catalogue.</p>
-            <p className="mt-1 text-[15px] text-ink/60 [overflow-wrap:anywhere]">{state.message}</p>
-            <button
-              type="button"
-              onClick={retry}
-              className="mt-3 h-10 rounded-full border border-border bg-white px-5 text-[15px] font-medium"
-            >
-              Try again
-            </button>
-          </div>
-        )}
+        {state.status === "error" && <CatalogueError message={state.message} onRetry={retry} />}
       </div>
     </section>
   );
@@ -156,7 +114,7 @@ export function HomeTopPicksSection() {
       <div className="mt-6">
         {state.status === "ready" ? (
           <ProductRail label="Top picks for you" gap={13} topInset={14}>
-            {state.sections.topPicks.map((product) => (
+            {state.data.sections.topPicks.map((product) => (
               <ProductCard
                 key={product.id}
                 product={product}
@@ -184,7 +142,7 @@ export function HomeTrendingSection() {
       <SectionHeader id="home-trending" title="Top Trending Products" />
       <ul className="mt-6 grid grid-cols-2 gap-x-4 gap-y-6 px-gutter">
         {state.status === "ready"
-          ? state.sections.trending.map((product) => (
+          ? state.data.sections.trending.map((product) => (
               <li key={product.id} className="pt-[15px]">
                 <ProductCard product={product} linkable={product.hasProductPage} comingSoon />
               </li>
@@ -217,7 +175,7 @@ export function HomeCustomisationSection() {
       <div className="mt-6">
         {state.status === "ready" ? (
           <ProductRail label="Top trending customisation" gap={15}>
-            {state.sections.trendingCustomisation.map((product) => (
+            {state.data.sections.trendingCustomisation.map((product) => (
               <ProductCard
                 key={product.id}
                 product={product}

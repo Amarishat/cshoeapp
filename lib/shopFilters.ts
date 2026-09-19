@@ -26,7 +26,7 @@ export function priceBounds(products: Product[]): [number, number] {
 }
 
 /** Products matching audience (`null` = all audiences), brand and price (order unchanged). */
-export function matchShopFilters(products: Product[], audience: Audience | null, filters: ShopFilters) {
+export function matchShopFilters<T extends Product>(products: T[], audience: Audience | null, filters: ShopFilters): T[] {
   return products.filter(
     (p) =>
       (audience === null || p.audience === audience) &&
@@ -36,7 +36,7 @@ export function matchShopFilters(products: Product[], audience: Audience | null,
 }
 
 /** Filtered and, if a sort is chosen, sorted by price (stable for ties). */
-export function applyShopFilters(products: Product[], audience: Audience | null, filters: ShopFilters) {
+export function applyShopFilters<T extends Product>(products: T[], audience: Audience | null, filters: ShopFilters): T[] {
   const matched = matchShopFilters(products, audience, filters);
   if (!filters.sort) return matched;
   const direction = filters.sort === "price-asc" ? 1 : -1;
@@ -75,7 +75,7 @@ function words(text: string): string[] {
  * a word in the product's name, brand name, category or audience (so "men"
  * doesn't match "women"). Only existing catalogue fields are searched.
  */
-export function searchProducts(products: Product[], query: string, brandNames: Record<string, string>) {
+export function searchProducts<T extends Product>(products: T[], query: string, brandNames: Record<string, string>): T[] {
   const terms = words(query);
   // Nothing searchable typed (e.g. only symbols): honestly no matches.
   if (terms.length === 0) return [];

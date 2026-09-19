@@ -5,12 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AudienceTabs } from "@/components/home/AudienceTabs";
 import { SectionHeader } from "@/components/home/SectionHeader";
+import { CardPlaceholder, CatalogueError } from "@/components/product/CatalogueStatus";
 import { ProductCard } from "@/components/product/ProductCard";
 import { ComingSoonBadge } from "@/components/ui/ComingSoonBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { Tabs } from "@/components/ui/Tabs";
 import { cn } from "@/lib/cn";
+import { getBrands, getProducts, type CatalogueProduct } from "@/lib/data/supabaseCatalog";
 import {
   activeFilterCount,
   applyShopFilters,
@@ -21,9 +23,57 @@ import {
 import { usePreferencesStore } from "@/lib/store/preferences";
 import { useShopFilterStore } from "@/lib/store/shopFilters";
 import { useStoreHydrated } from "@/lib/store/useStoreHydrated";
-import type { Audience, Brand, Product } from "@/lib/types";
+import type { Audience, Brand } from "@/lib/types";
+import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
 
 const AUDIENCE_LABEL = { men: "Men", women: "Women", kids: "Kids" } as const;
+
+/*
+ * Shop's catalogue, read from Supabase. The database has no display-order
+ * column, so membership and order are fixed here by id — the same 11
+ * products, in the same order, as before (Sabrina 2 EP is not part of Shop).
+ */
+const SHOP_PRODUCT_IDS = [
+  "nike-lite",
+  "nike-air-force",
+  "adidas-nmd",
+  "puma-shuffle",
+  "air-jordan-mid",
+  "air-jordan-low-womens",
+  "puma-classic",
+  "new-balance-550",
+  "nike-run",
+  "adidas-run",
+  "puma-sneakers",
+];
+
+// Figma's Shop by Brands shows these six, in this order.
+const SHOP_BRAND_IDS = ["nike", "adidas", "puma", "asics", "new-balance", "reebok"];
+
+interface ShopCatalogue {
+  products: CatalogueProduct[];
+  brands: Brand[];
+  /** Brand id → name, for text search. */
+  brandNames: Record<string, string>;
+}
+
+/** Picks Shop's products and brands in Shop order; anything missing is an error, not a gap. */
+async function loadShopCatalogue(): Promise<ShopCatalogue> {
+  const [products, allBrands] = await Promise.all([getProducts(), getBrands()]);
+  const byId = new Map(products.map((p) => [p.id, p]));
+  const brandById = new Map(allBrands.map((b) => [b.id, b]));
+  const pick = <T,>(map: Map<string, T>, ids: string[], kind: string) =>
+    ids.map((id) => {
+      const item = map.get(id);
+      if (!item) throw new Error(`Shop ${kind} "${id}" is missing from the catalogue.`);
+      return item;
+    });
+  return {
+    products: pick(byId, SHOP_PRODUCT_IDS, "product"),
+    brands: pick(brandById, SHOP_BRAND_IDS, "brand"),
+    brandNames: Object.fromEntries(allBrands.map((b) => [b.id, b.name])),
+  };
+}
 
 // During a search the tabs gain "All" (the default), kept in the URL — the
 // shared Men/Women/Kids preference is left untouched.
@@ -113,22 +163,13 @@ function BrandGrid({ brands }: { brands: Brand[] }) {
  * opens /shop/filters), the catalogue for the chosen audience with the applied
  * filters and sort, and Shop by Brands. With `?q=` it shows search results
  * (all audiences unless a tab is chosen) combined with the same filters. Figma's Highlights, New Arrivals,
- * Bestsellers and Recently Viewed are not used.
+ * Bestsellers and Recently Viewed are not used. Products and brands come
+ * from Supabase (loading and error states in the product section).
  */
 export function ShopView({
-  products,
-  linkableIds,
-  brands,
-  brandNames,
   query,
   searchAudience,
 }: {
-  products: Product[];
-  /** Products whose product page is built; other cards are not links. */
-  linkableIds: string[];
-  brands: Brand[];
-  /** Brand id → name, for text search. */
-  brandNames: Record<string, string>;
   /** `?q=` — when set, Shop shows search results. */
   query: string | null;
   /** `?audience=` during a search; `null` = all audiences. */
@@ -138,16 +179,19 @@ export function ShopView({
   const hydrated = useStoreHydrated(usePreferencesStore.persist);
   const preferredAudience = usePreferencesStore((s) => s.audience);
   const filters = useShopFilterStore((s) => s.filters);
+  const { state: catalogue, retry } = useCatalogueLoad(loadShopCatalogue);
+  const data = catalogue.status === "ready" ? catalogue.data : null;
+  const products = data?.products ?? [];
 
   // A search covers the whole catalogue (all audiences) unless an audience
   // tab is chosen; the normal Shop follows the shared Men/Women/Kids choice.
   const audience = query ? searchAudience : preferredAudience;
   const shown = applyShopFilters(
-    query ? searchProducts(products, query, brandNames) : products,
+    query && data ? searchProducts(products, query, data.brandNames) : products,
     audience,
     filters,
   );
-  const ready = query !== null || hydrated;
+  const ready = (query !== null || hydrated) && data !== null;
   // Price or brand filters can empty the grid; sort can't.
   const narrowed = filters.price !== null || filters.brands.length > 0;
   const activeCount = query
@@ -179,7 +223,7 @@ export function ShopView({
 
       <FilterChips activeCount={activeCount} href={filtersHref} />
 
-      <section aria-labelledby="shop-products" className="mt-10">
+      <section aria-labelledby="shop-products" aria-busy={catalogue.status === "loading"} className="mt-10">
         {query ? (
           <div className="px-gutter">
             <div className="flex items-center gap-3">
@@ -192,15 +236,29 @@ export function ShopView({
               </Link>
             </div>
             <p role="status" className="mt-1 text-secondary text-ink/50">
-              {countLabel}
+              {data && countLabel}
             </p>
           </div>
         ) : (
           <SectionHeader
             id="shop-products"
             title="All Products"
-            aside={hydrated && <p className="text-secondary text-ink/50">{countLabel}</p>}
+            aside={hydrated && data && <p className="text-secondary text-ink/50">{countLabel}</p>}
           />
+        )}
+        {catalogue.status === "loading" && (
+          <ul aria-hidden className="mt-6 grid grid-cols-2 gap-x-4 gap-y-6 px-gutter">
+            {Array.from({ length: 4 }, (_, i) => (
+              <li key={i} className="pt-[15px]">
+                <CardPlaceholder />
+              </li>
+            ))}
+          </ul>
+        )}
+        {catalogue.status === "error" && (
+          <div className="mt-6">
+            <CatalogueError message={catalogue.message} onRetry={retry} />
+          </div>
         )}
         {/* Wait for the saved Men/Women/Kids choice so the grid doesn't flash. */}
         {ready &&
@@ -208,7 +266,8 @@ export function ShopView({
             <ul className="mt-6 grid grid-cols-2 gap-x-4 gap-y-6 px-gutter">
               {shown.map((product) => (
                 <li key={product.id} className="pt-[15px]">
-                  <ProductCard product={product} linkable={linkableIds.includes(product.id)} />
+                  {/* Only products with a built product page link; others are Coming Soon. */}
+                  <ProductCard product={product} linkable={product.hasProductPage} />
                 </li>
               ))}
             </ul>
@@ -227,12 +286,14 @@ export function ShopView({
           ))}
       </section>
 
-      <section aria-labelledby="shop-brands" className="mt-10">
-        <SectionHeader id="shop-brands" title="Shop by Brands" />
-        <div className="mt-7">
-          <BrandGrid brands={brands} />
-        </div>
-      </section>
+      {data && (
+        <section aria-labelledby="shop-brands" className="mt-10">
+          <SectionHeader id="shop-brands" title="Shop by Brands" />
+          <div className="mt-7">
+            <BrandGrid brands={data.brands} />
+          </div>
+        </section>
+      )}
     </div>
   );
 }
