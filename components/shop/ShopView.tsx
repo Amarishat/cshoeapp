@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { Tabs } from "@/components/ui/Tabs";
 import { cn } from "@/lib/cn";
-import { getBrands, getProducts, type CatalogueProduct } from "@/lib/data/supabaseCatalog";
+import { loadShopCatalogue } from "@/lib/data/shopCatalogue";
 import {
   activeFilterCount,
   applyShopFilters,
@@ -27,53 +27,6 @@ import type { Audience, Brand } from "@/lib/types";
 import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
 
 const AUDIENCE_LABEL = { men: "Men", women: "Women", kids: "Kids" } as const;
-
-/*
- * Shop's catalogue, read from Supabase. The database has no display-order
- * column, so membership and order are fixed here by id — the same 11
- * products, in the same order, as before (Sabrina 2 EP is not part of Shop).
- */
-const SHOP_PRODUCT_IDS = [
-  "nike-lite",
-  "nike-air-force",
-  "adidas-nmd",
-  "puma-shuffle",
-  "air-jordan-mid",
-  "air-jordan-low-womens",
-  "puma-classic",
-  "new-balance-550",
-  "nike-run",
-  "adidas-run",
-  "puma-sneakers",
-];
-
-// Figma's Shop by Brands shows these six, in this order.
-const SHOP_BRAND_IDS = ["nike", "adidas", "puma", "asics", "new-balance", "reebok"];
-
-interface ShopCatalogue {
-  products: CatalogueProduct[];
-  brands: Brand[];
-  /** Brand id → name, for text search. */
-  brandNames: Record<string, string>;
-}
-
-/** Picks Shop's products and brands in Shop order; anything missing is an error, not a gap. */
-async function loadShopCatalogue(): Promise<ShopCatalogue> {
-  const [products, allBrands] = await Promise.all([getProducts(), getBrands()]);
-  const byId = new Map(products.map((p) => [p.id, p]));
-  const brandById = new Map(allBrands.map((b) => [b.id, b]));
-  const pick = <T,>(map: Map<string, T>, ids: string[], kind: string) =>
-    ids.map((id) => {
-      const item = map.get(id);
-      if (!item) throw new Error(`Shop ${kind} "${id}" is missing from the catalogue.`);
-      return item;
-    });
-  return {
-    products: pick(byId, SHOP_PRODUCT_IDS, "product"),
-    brands: pick(brandById, SHOP_BRAND_IDS, "brand"),
-    brandNames: Object.fromEntries(allBrands.map((b) => [b.id, b.name])),
-  };
-}
 
 // During a search the tabs gain "All" (the default), kept in the URL — the
 // shared Men/Women/Kids preference is left untouched.

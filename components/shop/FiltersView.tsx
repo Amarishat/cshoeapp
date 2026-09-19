@@ -1,16 +1,19 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { FixedBar } from "@/components/layout/FixedBar";
+import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { RangeSlider } from "@/components/ui/RangeSlider";
 import { Tabs } from "@/components/ui/Tabs";
 import { cn } from "@/lib/cn";
+import { loadShopCatalogue } from "@/lib/data/shopCatalogue";
 import { formatPrice } from "@/lib/pricing";
 import {
   DEFAULT_AUDIENCE,
   matchShopFilters,
+  priceBounds,
   searchProducts,
   shopSearchHref,
   SORT_OPTIONS,
@@ -20,6 +23,7 @@ import {
 import { usePreferencesStore } from "@/lib/store/preferences";
 import { useShopFilterStore } from "@/lib/store/shopFilters";
 import type { Audience, Brand, Product } from "@/lib/types";
+import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
 
 const AUDIENCES: { value: Audience | "all"; label: string }[] = [
   { value: "men", label: "Men" },
@@ -67,12 +71,64 @@ function SortOptions({ value, onChange }: { value: ShopSort | null; onChange: (v
 }
 
 /**
+ * Sort & Filter screen. Loads the Shop catalogue from Supabase (the same 11
+ * products as Shop), then shows the form; the price range and brand list are
+ * derived from those products.
+ */
+export function FiltersView({
+  query,
+  searchAudience,
+}: {
+  /** The Shop search being filtered (`?q=`), if any. */
+  query: string | null;
+  /** The search's audience (`?audience=`); `null` = all. */
+  searchAudience: Audience | null;
+}) {
+  const { state, retry } = useCatalogueLoad(loadShopCatalogue);
+
+  if (state.status !== "ready") {
+    return (
+      <div>
+        <AppHeader leading="back" backHref="/shop" title="Filters" />
+        <hr className="mt-[30px] border-border" />
+        {state.status === "loading" ? (
+          <div aria-busy="true" aria-label="Loading filters" className="mt-[23px] animate-pulse px-gutter">
+            <div className="h-10 w-2/3 rounded bg-surface" />
+            <div className="mt-10 h-5 w-24 rounded bg-surface" />
+            <div className="mt-6 h-4 w-40 rounded bg-surface" />
+            <div className="mt-5 h-4 w-40 rounded bg-surface" />
+            <div className="mx-auto mt-10 h-24 w-full max-w-[300px] rounded bg-surface" />
+          </div>
+        ) : (
+          <div className="mt-[23px]">
+            <CatalogueError message={state.message} onRetry={retry} />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const { products, allBrands, brandNames } = state.data;
+  return (
+    <FiltersForm
+      products={products}
+      // Only brands that actually have Shop products, in brand-row order.
+      brands={allBrands.filter((b) => products.some((p) => p.brand === b.id))}
+      bounds={priceBounds(products)}
+      brandNames={brandNames}
+      query={query}
+      searchAudience={searchAudience}
+    />
+  );
+}
+
+/**
  * Sort & Filter — Figma frame 1:5769, V1. Only filters our catalogue supports:
  * audience, price sort, price range and brand (Brand is an addition to
  * Figma). Changes are a draft until Apply, which saves them for this browsing
  * session and returns to Shop. The count updates live.
  */
-export function FiltersView({
+function FiltersForm({
   products,
   brands,
   bounds,
@@ -107,6 +163,13 @@ export function FiltersView({
   const [sort, setSort] = useState<ShopSort | null>(applied.sort);
   const [price, setPrice] = useState<[number, number]>(applied.price ?? bounds);
   const [selectedBrands, setSelectedBrands] = useState<string[]>(applied.brands);
+
+  // The form renders after the catalogue loads, too late for the browser's own
+  // jump to Shop's Brand / Price chip targets (#filters-brand, #filters-price).
+  useEffect(() => {
+    const id = window.location.hash.slice(1);
+    if (id) document.getElementById(id)?.scrollIntoView();
+  }, []);
 
   const audience = draftAudience ?? shopAudience;
   const countAudience = audience === "all" ? null : audience;
