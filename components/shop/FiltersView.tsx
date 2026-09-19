@@ -7,7 +7,7 @@ import { FixedBar } from "@/components/layout/FixedBar";
 import { RangeSlider } from "@/components/ui/RangeSlider";
 import { Tabs } from "@/components/ui/Tabs";
 import { cn } from "@/lib/cn";
-import { formatGrouped } from "@/lib/pricing";
+import { formatPrice } from "@/lib/pricing";
 import {
   DEFAULT_AUDIENCE,
   matchShopFilters,
@@ -185,7 +185,7 @@ export function FiltersView({
             value={price}
             onChange={setPrice}
             labels={["Minimum price", "Maximum price"]}
-            formatValue={formatGrouped}
+            formatValue={formatPrice}
           />
         </div>
       </section>

@@ -1,10 +1,6 @@
-import { formatGrouped } from "@/lib/pricing";
+import { formatEventDate } from "@/lib/orders";
+import { formatPrice } from "@/lib/pricing";
 import type { Order } from "@/lib/types";
-
-const MONTHS_LONG = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
 
 /** A notification derived from a real order. Never stored — rebuilt from the Orders store. */
 export interface OrderNotification {
@@ -17,15 +13,14 @@ export interface OrderNotification {
 export interface NotificationDay {
   /** Local calendar day, e.g. "Tue Nov 24 2026". */
   key: string;
-  /** Figma heading style, e.g. "24. November" (no year). */
+  /** Day heading, e.g. "19 Sep 2026". */
   label: string;
   items: OrderNotification[];
 }
 
-/** "24. November" — Figma 1:6944 date heading. */
+/** Notifications day heading, e.g. "19 Sep 2026". */
 export function formatNotificationDate(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getDate()}. ${MONTHS_LONG[d.getMonth()]}`;
+  return formatEventDate(iso);
 }
 
 /** One "Order confirmed" notification per order, newest first. */
@@ -39,7 +34,7 @@ export function orderNotifications(orders: Order[]): OrderNotification[] {
         orderId: order.id,
         createdAt: order.createdAt,
         title: "Order confirmed",
-        body: `Order ${order.id} · ${first?.name ?? "Your items"}${more} · ${formatGrouped(order.totals.total)}`,
+        body: `Order ${order.id} · ${first?.name ?? "Your items"}${more} · ${formatPrice(order.totals.total)}`,
       };
     });
 }

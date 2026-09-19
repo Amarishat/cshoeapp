@@ -1,13 +1,21 @@
-import { computeBagTotals, isSelected } from "@/lib/pricing";
+import { computeBagTotals, formatAmount, isSelected } from "@/lib/pricing";
 import type { Address, BagProduct, CartItem, Order, OrderStatus, UpiAppId } from "@/lib/types";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** "Friday, 9 May" — Figma tracker date style (3-letter month so it fits at 360px, e.g. "18 Sep"). */
-export function formatOrderDate(iso: string): string {
+/**
+ * "19 Sep 2026" — the one display format for real order/event dates
+ * (placed, confirmed, notifications, shared text). Display only; the fixed
+ * delivery estimate in lib/data/delivery.ts keeps its own format.
+ */
+export function formatEventDate(iso: string): string {
   const d = new Date(iso);
-  const weekday = d.toLocaleDateString("en-GB", { weekday: "long" });
-  return `${weekday}, ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+/** My Orders tracker date, e.g. "19 Sep 2026". */
+export function formatOrderDate(iso: string): string {
+  return formatEventDate(iso);
 }
 
 export interface ProgressStep {
@@ -36,10 +44,9 @@ export function orderProgress(order: Order): ProgressStep[] {
   ];
 }
 
-/** "Sep 19" — Order Details tracker date style (Figma "May 9"). */
+/** Order Details tracker date ("Order Confirmed, 19 Sep 2026"). */
 export function formatShortOrderDate(iso: string): string {
-  const d = new Date(iso);
-  return `${MONTHS[d.getMonth()]} ${d.getDate()}`;
+  return formatEventDate(iso);
 }
 
 /**
@@ -67,28 +74,18 @@ export function orderDetailProgress(order: Order, expectedDelivery: string): Pro
   return steps;
 }
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-function ordinal(n: number): string {
-  const tens = n % 100;
-  if (tens >= 11 && tens <= 13) return `${n}th`;
-  return `${n}${["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
-}
-
-/** "Fri, 9th May ‘24" — Track Order date style (Figma 1:4176). */
+/** Track Order step date, e.g. "19 Sep 2026". */
 export function formatTrackDate(iso: string): string {
-  const d = new Date(iso);
-  const year = String(d.getFullYear()).slice(-2);
-  return `${WEEKDAYS[d.getDay()]}, ${ordinal(d.getDate())} ${MONTHS[d.getMonth()]} ‘${year}`;
+  return formatEventDate(iso);
 }
 
-/** "Fri, 9th May ‘24 - 5:55pm" — Track Order event timestamp. */
+/** "19 Sep 2026, 1:55pm" — Track Order event timestamp. */
 export function formatTrackTimestamp(iso: string): string {
   const d = new Date(iso);
   const hours = d.getHours();
   const minutes = String(d.getMinutes()).padStart(2, "0");
   const time = `${hours % 12 || 12}:${minutes}${hours < 12 ? "am" : "pm"}`;
-  return `${formatTrackDate(iso)} - ${time}`;
+  return `${formatEventDate(iso)}, ${time}`;
 }
 
 export interface TrackEvent {
@@ -200,13 +197,11 @@ export function buildOrder({
  * orders live on this device only, so there is no link to share).
  */
 export function orderSummaryText(order: Order): string {
-  const money = (n: number) => `₹ ${n.toFixed(2)}`;
-  const d = new Date(order.createdAt);
-  const date = `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`; // "19 Sep 2026"
+  const date = formatEventDate(order.createdAt);
   const lines = order.lines.map((line, i) => {
     const total = line.unitPrice * line.quantity;
     const price =
-      line.quantity > 1 ? `${money(line.unitPrice)} × ${line.quantity} = ${money(total)}` : money(total);
+      line.quantity > 1 ? `${formatAmount(line.unitPrice)} × ${line.quantity} = ${formatAmount(total)}` : formatAmount(total);
     const custom = line.customization ? " (Customised)" : "";
     return `${i + 1}. ${line.name}${custom}\n   Size ${line.size} · Qty ${line.quantity} · ${price}`;
   });
@@ -218,10 +213,10 @@ export function orderSummaryText(order: Order): string {
     "Items:",
     ...lines,
     "",
-    `Subtotal: ${money(totals.subtotal)}`,
-    ...(totals.discount ? [`Discount: -${money(totals.discount)}`] : []),
-    `Delivery: ${money(totals.delivery)}`,
-    `Platform fee: ${money(totals.platformFee)}`,
-    `Total: ${money(totals.total)}`,
+    `Subtotal: ${formatAmount(totals.subtotal)}`,
+    ...(totals.discount ? [`Discount: -${formatAmount(totals.discount)}`] : []),
+    `Delivery: ${formatAmount(totals.delivery)}`,
+    `Platform fee: ${formatAmount(totals.platformFee)}`,
+    `Total: ${formatAmount(totals.total)}`,
   ].join("\n");
 }

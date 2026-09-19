@@ -39,9 +39,12 @@ export function computeBagTotals(
   };
 }
 
-/** "₹ 1250.00" — price summary rows. */
-export const formatAmount = (n: number) => `₹ ${n.toFixed(2)}`;
-/** "₹17,999" — select-all bar. */
-export const formatGrouped = (n: number) => `₹${n.toLocaleString("en-IN")}`;
-/** "₹ 17000" — item MRP and the order bar. */
-export const formatPrice = (n: number) => `₹ ${n}`;
+// Display formatting only — amounts are whole rupees, and nothing here rounds.
+
+/** "17,000" — Indian digit grouping, for layouts that style the ₹ separately. */
+export const formatNumber = (n: number) => n.toLocaleString("en-IN");
+/** "₹17,000" — item prices, bottom bars and other single amounts. */
+export const formatPrice = (n: number) => `₹${formatNumber(n)}`;
+/** "₹1,250.00" — detailed price rows (Subtotal, Delivery, Total Amount…). */
+export const formatAmount = (n: number) =>
+  `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

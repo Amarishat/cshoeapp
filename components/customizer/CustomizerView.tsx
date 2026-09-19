@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { u } from "@/components/home/banner";
 import { TryOnButton } from "@/components/product/TryOnButton";
 import { QtyStepper } from "@/components/ui/QtyStepper";
+import { formatPrice } from "@/lib/pricing";
 import { useBagStore } from "@/lib/store/bag";
 import { useCustomizationStore } from "@/lib/store/customization";
 import type { CustomizationConfig, CustomizationSelection } from "@/lib/types";
@@ -119,7 +120,7 @@ export function CustomizerView({ config }: { config: CustomizationConfig }) {
 
         <div className="mt-[37px] justify-self-end pr-[49px] text-right">
           <p className="text-secondary font-medium text-ink/30">Price</p>
-          <p className="mt-[5px] text-[25px] font-medium">₹{config.price}</p>
+          <p className="mt-[5px] text-[25px] font-medium">{formatPrice(config.price)}</p>
           <p className="mt-1 text-[15px] font-medium text-success">{config.discountLabel}</p>
         </div>
       </div>

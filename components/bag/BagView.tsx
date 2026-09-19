@@ -6,7 +6,7 @@ import { FixedBar } from "@/components/layout/FixedBar";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { computeBagTotals, formatAmount, formatGrouped, formatPrice, isSelected } from "@/lib/pricing";
+import { computeBagTotals, formatAmount, formatPrice, isSelected } from "@/lib/pricing";
 import { useBagStore } from "@/lib/store/bag";
 import { useBagHydrated } from "@/lib/store/useBagHydrated";
 import type { BagProduct } from "@/lib/types";
@@ -48,7 +48,7 @@ export function BagView({ catalog }: { catalog: Record<string, BagProduct> }) {
         <p className="text-ink/70">
           {totals.selectedCount}/{items.length} Items Selected
         </p>
-        <p>({formatGrouped(totals.subtotal)})</p>
+        <p>({formatPrice(totals.subtotal)})</p>
       </div>
 
       {/* Items */}

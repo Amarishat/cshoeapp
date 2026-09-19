@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { FixedBar } from "@/components/layout/FixedBar";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { computeBagTotals, formatAmount, isSelected } from "@/lib/pricing";
+import { computeBagTotals, formatAmount, formatNumber, isSelected } from "@/lib/pricing";
 import { useBagStore } from "@/lib/store/bag";
 import { useCheckoutStore } from "@/lib/store/checkout";
 import { useStoreHydrated } from "@/lib/store/useStoreHydrated";
@@ -98,7 +98,7 @@ export function OrderSummaryView({ catalog }: { catalog: Record<string, BagProdu
         <div className="box-content flex h-[116px] items-start justify-between gap-3 border-t border-[#d9d9d9] bg-white pr-[26px] pb-[env(safe-area-inset-bottom)] pl-[25px]">
           <div className="shrink-0 pt-[25px]">
             <p className="text-[22px] text-primary">
-              <span className="sr-only">Total </span>₹<span className="font-semibold">{totals.total}</span>
+              <span className="sr-only">Total </span>₹<span className="font-semibold">{formatNumber(totals.total)}</span>
             </p>
             <button
               type="button"

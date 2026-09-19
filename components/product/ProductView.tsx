@@ -10,6 +10,7 @@ import { ComingSoonBadge } from "@/components/ui/ComingSoonBadge";
 import { Icon } from "@/components/ui/Icon";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { cn } from "@/lib/cn";
+import { formatPrice } from "@/lib/pricing";
 import { sizeLabel, type SizeSystem } from "@/lib/sizes";
 import { useBagStore } from "@/lib/store/bag";
 import type { ProductDetail } from "@/lib/types";
@@ -168,7 +169,7 @@ export function ProductView({
           <h2 className="text-body font-medium">{product.name}</h2>
           <p className="text-secondary text-muted/70">{product.category}</p>
           <p className="text-body">
-            MRP : <span className="font-semibold">₹ {product.price}</span>
+            MRP : <span className="font-semibold">{formatPrice(product.price)}</span>
           </p>
           <p className="text-caption text-ink/40">
             Incl. of taxes

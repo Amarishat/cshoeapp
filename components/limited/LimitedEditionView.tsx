@@ -8,6 +8,7 @@ import { u } from "@/components/home/banner";
 import { HeartButton } from "@/components/product/HeartButton";
 import { cn } from "@/lib/cn";
 import type { LimitedEdition } from "@/lib/data/limitedEdition";
+import { formatPrice } from "@/lib/pricing";
 import { useBagStore } from "@/lib/store/bag";
 
 /**
@@ -106,7 +107,7 @@ export function LimitedEditionView({ edition }: { edition: LimitedEdition }) {
         {/* Price block and name scale with the viewer (like the wordmark) so
             they keep Figma's spacing at narrow widths. */}
         <p className="absolute font-medium" style={{ left: u(26), top: u(438), fontSize: u(27) }}>
-          ₹{edition.price}
+          {formatPrice(edition.price)}
         </p>
         <p
           className="absolute font-medium text-[#be3032]"

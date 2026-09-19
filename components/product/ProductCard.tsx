@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ComingSoonBadge } from "@/components/ui/ComingSoonBadge";
 import { cn } from "@/lib/cn";
+import { formatPrice } from "@/lib/pricing";
 import type { ProductCardData } from "@/lib/types";
 import { CardImage } from "./CardImage";
 import { HeartButton } from "./HeartButton";
@@ -9,7 +10,8 @@ import { Rating } from "./Rating";
 
 /**
  * Product card (Figma Home): 187×198 #F5F5F5 tile with 20px radius, then name
- * (Medium 19), category (Regular 16, muted), "MRP : ₹…" (19) and rating.
+ * (Medium 19, up to two lines), category (Regular 16, muted), "MRP : ₹…" (19,
+ * scaled down to stay on one line in narrow cards) and rating.
  *
  * - `heart`: wishlist button overlapping the top-right corner.
  * - `customise`: white 37px badge with the customise icon, inside the tile;
@@ -64,13 +66,16 @@ export function ProductCard({
           <ComingSoonBadge className="absolute top-[19px] left-2.5 bg-white!" />
         )}
       </div>
-      <div className="mt-[11px] flex flex-col gap-[2px] px-[15px]">
-        <h3 className="truncate text-body font-medium">{product.name}</h3>
+      {/* A container so the price can size itself to this card's width. */}
+      <div className="@container mt-[11px] flex flex-col gap-[2px] px-[15px]">
+        {/* Up to two lines, always reserving two so cards in a row stay aligned. */}
+        <h3 className="line-clamp-2 min-h-[2lh] text-body font-medium">{product.name}</h3>
         <p className={cn("truncate text-secondary", categoryOpacity === 50 ? "text-ink/50" : "text-ink/30")}>
           {product.category}
         </p>
-        <p className="text-body">
-          MRP : <span className="font-medium">₹{product.price}</span>
+        {/* One line: 19px while "MRP : ₹17,000" fits, a touch smaller in narrower grid cards. */}
+        <p className="text-[length:min(19px,14.8cqi)] whitespace-nowrap">
+          MRP : <span className="font-medium">{formatPrice(product.price)}</span>
         </p>
         <Rating value={product.rating} />
       </div>
