@@ -20,9 +20,11 @@ export function AddressView({
 }) {
   const router = useRouter();
   const selected = useCheckoutStore((s) => s.addresses.find((a) => a.id === s.selectedAddressId));
+  // Only addresses loaded from Supabase count (not the store's cached list).
+  const synced = useCheckoutStore((s) => s.addressesSynced);
   const bagItems = useBagStore((s) => s.items);
 
-  const canContinue = !!selected && isValidAddress(selected);
+  const canContinue = synced && !!selected && isValidAddress(selected);
   const { total } = computeBagTotals(bagItems, catalog);
 
   return (

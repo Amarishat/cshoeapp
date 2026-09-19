@@ -13,6 +13,17 @@ interface CheckoutState {
   /** Saves a new address, selects it, and returns its id. */
   addAddress: (input: AddressInput) => string;
   updateAddress: (id: string, input: AddressInput) => void;
+  /**
+   * The addresses loaded from Supabase have replaced the list above (not
+   * persisted: false on every page load until the Address screen loads them).
+   */
+  addressesSynced: boolean;
+  /**
+   * Replaces the list with the user's Supabase addresses so the next checkout
+   * steps (Order Summary, Payment) use them. Keeps the selection if it is
+   * still in the list, otherwise selects the default address (or none).
+   */
+  syncAddresses: (addresses: Address[]) => void;
 }
 
 // Only one address can be the default.
@@ -41,10 +52,20 @@ export const useCheckoutStore = create<CheckoutState>()(
           const addresses = state.addresses.map((a) => (a.id === id ? { ...input, id } : a));
           return { addresses: input.isDefault ? withDefault(addresses, id) : addresses };
         }),
+      addressesSynced: false,
+      syncAddresses: (addresses) =>
+        set((state) => ({
+          addresses,
+          selectedAddressId: addresses.some((a) => a.id === state.selectedAddressId)
+            ? state.selectedAddressId
+            : (addresses.find((a) => a.isDefault)?.id ?? null),
+          addressesSynced: true,
+        })),
     }),
     {
       name: "cs-checkout",
       storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({ addresses: state.addresses, selectedAddressId: state.selectedAddressId }),
       skipHydration: true,
     },
   ),

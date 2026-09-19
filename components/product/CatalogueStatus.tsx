@@ -14,11 +14,19 @@ export function CardPlaceholder() {
   );
 }
 
-/** "Couldn't load the catalogue" with the Supabase error and a retry. */
-export function CatalogueError({ message, onRetry }: { message: string; onRetry: () => void }) {
+/** "Couldn't load the catalogue" (or `title`) with the Supabase error and a retry. */
+export function CatalogueError({
+  message,
+  onRetry,
+  title = "Couldn’t load the catalogue.",
+}: {
+  message: string;
+  onRetry: () => void;
+  title?: string;
+}) {
   return (
     <div role="alert" className="mx-gutter rounded-[15px] bg-surface px-4 py-4">
-      <p className="font-medium">Couldn’t load the catalogue.</p>
+      <p className="font-medium">{title}</p>
       <p className="mt-1 text-[15px] text-ink/60 [overflow-wrap:anywhere]">{message}</p>
       <button
         type="button"
