@@ -1,26 +1,116 @@
 @import "tailwindcss";
+@plugin "@iconify/tailwind4";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * Design tokens — values come from the CSApp Figma file (hTa0rUrLfXNfjPmvf8VlQY).
+ * Figma has no dark mode, so there is none here.
+ */
+@theme {
+  /* Colour: core */
+  --color-page: #fefefe;
+  --color-ink: #000000;
+  --color-primary: #1a1a1a;
+  --color-surface: #f5f5f5;
+  --color-border: #cccccc;
+  --color-muted: #ada1a1;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  /* Colour: Figma variables */
+  --color-gray-2: #4f4f4f;
+  --color-gray-4: #bdbdbd;
+  --color-gray-5: #e0e0e0;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  /* Colour: semantic / accent */
+  --color-success: #4caf50;
+  --color-accent: #e24c4d; /* "20% Off" promo red */
+  --color-action: #fc8b4c; /* Filters "Apply" orange */
+  --color-danger: #e93030; /* Address "Clear all" red; also form errors */
+
+  /* Outside the 430px app column on tablet/desktop (not in Figma). */
+  --color-backdrop: #ececec;
+
+  /* Type scale (Inter unless noted) */
+  --text-heading: 1.375rem; /* 22px — page titles */
+  --text-heading--line-height: 2rem;
+  --text-body: 1.1875rem; /* 19px — body, labels, tabs, buttons */
+  --text-label: 1.0625rem; /* 17px */
+  --text-secondary: 1rem; /* 16px */
+  --text-caption: 0.75rem; /* 12px */
+
+  /* Radius */
+  --radius-input: 9px;
+  --radius-button: 25px;
+  --radius-button-lg: 35px;
+  --radius-card: 18px;
+
+  /* Layout */
+  --spacing-gutter: 20px;
+  --container-app: 430px;
+
+  /* Payment success mark (CSS stand-in for Figma's Lottie animation) */
+  --animate-pop-in: pop-in 450ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  --animate-draw-check: draw-check 400ms ease-out 300ms both;
+
+  @keyframes pop-in {
+    from {
+      transform: scale(0.4);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes draw-check {
+    from {
+      stroke-dashoffset: 60;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-sora), var(--font-inter), ui-sans-serif, sans-serif;
+  /* Promo banner headlines only (Figma: Futura Md BT). */
+  --font-banner: var(--font-jost), var(--font-inter), ui-sans-serif, sans-serif;
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+:root {
+  color-scheme: light;
+  /* Bottom nav: 54px of content plus the home-indicator area (89px total in Figma). */
+  --bottom-nav-height: calc(54px + max(env(safe-area-inset-bottom), 35px));
+}
+
+@layer base {
+  /* Figma text uses the font's natural line height ("normal"), not Tailwind's 1.5. */
+  html,
+  :host {
+    line-height: normal;
+  }
+
+  body {
+    background-color: var(--color-backdrop);
+    color: var(--color-ink);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
 }
