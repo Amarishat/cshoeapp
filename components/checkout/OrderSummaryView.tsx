@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { FixedBar } from "@/components/layout/FixedBar";
+import { BagActionError } from "@/components/bag/BagActionError";
 import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { loadBagCatalogue } from "@/lib/data/bagCatalogue";
@@ -126,6 +127,8 @@ function OrderSummaryContents({ catalog, address }: { catalog: Record<string, Ba
             : `${unavailableCount} selected items aren’t available right now and aren’t included.`}
         </p>
       )}
+
+      <BagActionError className="mt-4" />
 
       {/* Items */}
       <ul aria-label="Items in this order" className="mt-10 border-t border-[#d9d9d9] px-gutter">

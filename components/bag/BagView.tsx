@@ -13,6 +13,7 @@ import { useBagStore } from "@/lib/store/bag";
 import { useBagHydrated } from "@/lib/store/useBagHydrated";
 import type { BagProduct } from "@/lib/types";
 import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
+import { BagActionError } from "./BagActionError";
 import { BagItemRow } from "./BagItemRow";
 
 function EmptyBag() {
@@ -32,25 +33,41 @@ function UnavailableNote({ count }: { count: number }) {
 }
 
 /**
- * Bag body — Figma frame 1:2713 (everything below the header). Bag items come
- * from the bag store (kept on this device); their product info comes from
- * Supabase.
+ * Bag body — Figma frame 1:2713 (everything below the header). Bag items are
+ * the guest's Supabase cart (via the bag store); their product info comes
+ * from the Supabase catalogue.
  */
 export function BagView() {
   const hydrated = useBagHydrated();
+  const bagLoadError = useBagStore((s) => s.loadError);
+  const retryBag = useBagStore((s) => s.retry);
   const allItems = useBagStore((s) => s.items);
   const { state, retry } = useCatalogueLoad(loadBagCatalogue);
 
-  if (!hydrated) return <div className="flex-1" aria-busy="true" />;
-  if (allItems.length === 0) return <EmptyBag />;
+  if (bagLoadError) {
+    return (
+      <div className="mt-[30px]">
+        <CatalogueError
+          title="Couldn’t load your bag."
+          message={bagLoadError}
+          onRetry={() => {
+            void retryBag();
+            // The product info may have failed too (same outage): retry it with the Bag.
+            if (state.status === "error") retry();
+          }}
+        />
+      </div>
+    );
+  }
+  if (hydrated && allItems.length === 0) return <EmptyBag />;
 
-  if (state.status === "loading") {
+  if (!hydrated || state.status === "loading") {
     return (
       <div aria-busy="true" aria-label="Loading bag" className="animate-pulse">
         <div className="mt-[30px] h-14 bg-surface" />
         <ul aria-hidden className="mt-10 flex flex-col gap-[81px] px-gutter">
-          {allItems.map((item) => (
-            <li key={item.id} className="flex gap-4">
+          {(hydrated ? allItems.map((item) => item.id) : ["a", "b"]).map((key) => (
+            <li key={key} className="flex gap-4">
               <div className="h-[120px] w-[150px] shrink-0 rounded bg-surface" />
               <div className="flex flex-1 flex-col gap-2 pt-10">
                 <div className="h-5 w-3/4 rounded bg-surface" />
@@ -115,6 +132,7 @@ function BagContents({ catalog }: { catalog: Record<string, BagProduct> }) {
         <p>({formatPrice(totals.subtotal)})</p>
       </div>
       <UnavailableNote count={unavailableCount} />
+      <BagActionError className="mt-4" />
 
       {/* Items */}
       <ul className="mt-10 px-gutter">

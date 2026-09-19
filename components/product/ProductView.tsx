@@ -70,6 +70,8 @@ export function ProductView({
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [open, setOpen] = useState({ fit: true, reviews: false, info: false });
   const [justAdded, setJustAdded] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState("");
   const addedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => () => clearTimeout(addedTimer.current), []);
@@ -80,20 +82,26 @@ export function ProductView({
   const reviewCount = product.reviews.length;
   const thumbnails = product.gallery.slice(1);
 
-  function add() {
-    addToBag({ id: crypto.randomUUID(), productId: product.id, size: `UK ${sizeUK}`, quantity });
+  /** Saves to the Bag (Supabase); true once saved. A failure is shown below the buttons. */
+  async function add(): Promise<boolean> {
+    if (adding) return false;
+    setAdding(true);
+    setAddError("");
+    const error = await addToBag({ id: "", productId: product.id, size: `UK ${sizeUK}`, quantity });
+    setAdding(false);
+    if (error) setAddError(error);
+    return !error;
   }
 
-  function onAddToBag() {
-    add();
+  async function onAddToBag() {
+    if (!(await add())) return;
     setJustAdded(true);
     clearTimeout(addedTimer.current);
     addedTimer.current = setTimeout(() => setJustAdded(false), 2000);
   }
 
-  function onBuyNow() {
-    add();
-    router.push("/checkout/address");
+  async function onBuyNow() {
+    if (await add()) router.push("/checkout/address");
   }
 
   function showReviews() {
@@ -264,6 +272,11 @@ export function ProductView({
         <p aria-live="polite" className="sr-only">
           {justAdded ? `${product.name}, size UK ${sizeUK}, added to bag` : ""}
         </p>
+        {addError && (
+          <p role="alert" className="-mt-2 text-center text-secondary text-danger [overflow-wrap:anywhere]">
+            {addError}
+          </p>
+        )}
       </div>
 
       {/* Accordions */}

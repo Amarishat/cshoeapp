@@ -22,14 +22,24 @@ export function LimitedEditionView({ edition }: { edition: LimitedEdition }) {
   const [sizeUK, setSizeUK] = useState<number | null>(null);
   const [colourId, setColourId] = useState(edition.colourways[0]?.id);
   const [justAdded, setJustAdded] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState("");
   const addedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => () => clearTimeout(addedTimer.current), []);
 
-  function onAdd() {
-    if (sizeUK === null) return;
-    // Plain (not customised) item: same product + size adds quantity.
-    addToBag({ id: crypto.randomUUID(), productId: edition.productId, size: `UK ${sizeUK}`, quantity: 1 });
+  async function onAdd() {
+    if (sizeUK === null || adding) return;
+    setAdding(true);
+    setAddError("");
+    // Plain (not customised) item: same product + size adds quantity. Saved to
+    // the Bag in Supabase; "Added to bag" only once it has saved.
+    const error = await addToBag({ id: "", productId: edition.productId, size: `UK ${sizeUK}`, quantity: 1 });
+    setAdding(false);
+    if (error) {
+      setAddError(error);
+      return;
+    }
     setJustAdded(true);
     clearTimeout(addedTimer.current);
     addedTimer.current = setTimeout(() => setJustAdded(false), 2000);
@@ -126,9 +136,14 @@ export function LimitedEditionView({ edition }: { edition: LimitedEdition }) {
       <p aria-live="polite" className="mt-[26px] text-center text-label font-semibold">
         {status}
       </p>
+      {addError && (
+        <p role="alert" className="mt-2 px-gutter text-center text-secondary text-danger [overflow-wrap:anywhere]">
+          {addError}
+        </p>
+      )}
       <div className="mt-[25px] flex justify-center">
         <SwipeToAdd
-          onAdd={onAdd}
+          onAdd={() => void onAdd()}
           disabled={sizeUK === null}
           label={
             sizeUK === null

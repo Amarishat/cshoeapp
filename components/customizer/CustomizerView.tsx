@@ -27,6 +27,8 @@ export function CustomizerView({ config }: { config: CustomizationConfig }) {
   const [partIndex, setPartIndex] = useState(0);
   const [announcement, setAnnouncement] = useState("");
   const [justAdded, setJustAdded] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState("");
   const addedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => () => clearTimeout(addedTimer.current), []);
@@ -40,15 +42,24 @@ export function CustomizerView({ config }: { config: CustomizationConfig }) {
     setAnnouncement(`${part.name} set to ${colour?.name ?? colourId}`);
   }
 
-  function onAdd() {
+  async function onAdd() {
+    if (adding) return;
     const customised = Object.keys(selection).length > 0;
-    addToBag({
-      id: crypto.randomUUID(),
+    setAdding(true);
+    setAddError("");
+    // Saved to the Bag in Supabase; "Added to bag" only once it has saved.
+    const error = await addToBag({
+      id: "",
       productId: config.productId,
       size: `UK ${sizeUK}`,
       quantity,
       customization: customised ? { ...selection } : undefined,
     });
+    setAdding(false);
+    if (error) {
+      setAddError(error);
+      return;
+    }
     setJustAdded(true);
     clearTimeout(addedTimer.current);
     addedTimer.current = setTimeout(() => setJustAdded(false), 2000);
@@ -102,6 +113,11 @@ export function CustomizerView({ config }: { config: CustomizationConfig }) {
       <p aria-live="polite" className="mt-[51px] text-center text-label font-semibold">
         {justAdded ? "Added to bag" : "Swipe down to add"}
       </p>
+      {addError && (
+        <p role="alert" className="mt-2 px-gutter text-center text-secondary text-danger [overflow-wrap:anywhere]">
+          {addError}
+        </p>
+      )}
 
       <div className="mt-[21px] grid grid-cols-[1fr_auto_1fr] items-start">
         <div className="mt-7 pl-10">
@@ -114,7 +130,7 @@ export function CustomizerView({ config }: { config: CustomizationConfig }) {
         </div>
 
         <SwipeToAdd
-          onAdd={onAdd}
+          onAdd={() => void onAdd()}
           label={`Add ${config.title}, size UK ${sizeUK}, quantity ${quantity}, to bag`}
         />
 

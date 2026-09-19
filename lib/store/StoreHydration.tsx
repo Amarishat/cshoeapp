@@ -9,10 +9,13 @@ import { useOrdersStore } from "./orders";
 import { usePreferencesStore } from "./preferences";
 import { useWishlistStore } from "./wishlist";
 
-/** Loads persisted client stores from localStorage once the app has mounted. */
+/**
+ * Loads persisted client stores from localStorage once the app has mounted,
+ * and the Bag from Supabase (it isn't saved on the device).
+ */
 export function StoreHydration() {
   useEffect(() => {
-    void useBagStore.persist.rehydrate();
+    void useBagStore.getState().load();
     void useCheckoutStore.persist.rehydrate();
     void useOrdersStore.persist.rehydrate();
     void useCustomizationStore.persist.rehydrate();
