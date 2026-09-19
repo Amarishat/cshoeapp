@@ -2,15 +2,14 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { AppHeader } from "@/components/layout/AppHeader";
-import { SizeChartTable } from "@/components/product/SizeChartTable";
-import { getProductDetail, getProductDetailSlugs } from "@/lib/data/productDetails";
-import { getSizeChart } from "@/lib/data/sizeChart";
+import { SizeChartView } from "@/components/product/SizeChartView";
+import { PRODUCT_PAGES } from "@/lib/data/productPages";
 
 export const dynamicParams = false;
 
+// Same routes as the product page (V1: Sabrina 2 EP); any other slug is a 404.
 export async function generateStaticParams() {
-  const slugs = await getProductDetailSlugs();
-  return slugs.map((slug) => ({ slug }));
+  return PRODUCT_PAGES.map((page) => ({ slug: page.slug }));
 }
 
 export const metadata: Metadata = { title: "Size chart" };
@@ -25,18 +24,20 @@ const steps = [
   "Apply the longer of the two measurements to our size chart to find the right correlating size for the recorded foot length. If the measurement is between sizes, we recommend sizing up.",
 ];
 
-/** Size Chart — Figma frame 1:2606. */
+/**
+ * Size Chart — Figma frame 1:2606. The product's sizes are loaded from
+ * Supabase by SizeChartView; the illustration and steps are static copy.
+ */
 export default async function SizeChartPage({ params }: PageProps<"/products/[slug]/size-chart">) {
   const { slug } = await params;
-  const [product, columns] = await Promise.all([getProductDetail(slug), getSizeChart()]);
-  if (!product) notFound();
+  if (!PRODUCT_PAGES.some((page) => page.slug === slug)) notFound();
 
   return (
     <div className="pb-10">
       <AppHeader leading="back" backHref={`/products/${slug}`} title="Size chart" />
 
       <div className="mt-[30px]">
-        <SizeChartTable columns={columns} />
+        <SizeChartView slug={slug} />
       </div>
 
       {/* Foot illustration: 369×330 frame with Figma's crop of the 500px image. */}
