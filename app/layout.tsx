@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Jost, Sora } from "next/font/google";
 import { AppShell } from "@/components/layout/AppShell";
+import { GuestSessionProvider } from "@/components/providers/GuestSessionProvider";
 import { StoreHydration } from "@/lib/store/StoreHydration";
 import "./globals.css";
 
@@ -41,7 +42,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${inter.variable} ${sora.variable} ${jost.variable} antialiased`}>
       <body className="font-sans">
         <StoreHydration />
-        <AppShell>{children}</AppShell>
+        <GuestSessionProvider>
+          <AppShell>{children}</AppShell>
+        </GuestSessionProvider>
       </body>
     </html>
   );
