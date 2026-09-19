@@ -1,33 +1,85 @@
 "use client";
 
 import { Fragment, useState } from "react";
+import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { ComingSoonBadge } from "@/components/ui/ComingSoonBadge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import type { CatalogProduct } from "@/lib/data/catalog";
+import { loadWishlistCatalogue } from "@/lib/data/wishlistCatalogue";
 import { useStoreHydrated } from "@/lib/store/useStoreHydrated";
 import { useWishlistStore } from "@/lib/store/wishlist";
+import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
 import { WishlistCard } from "./WishlistCard";
 
 /**
  * Wishlist body — Figma frame 1:5946 (below the header). Items come only from
- * the wishlist store; Figma's MRP/discount, sample products and Recently
- * Viewed rail are not used in V1.
+ * the wishlist store (kept on this device); their product info comes from
+ * Supabase. Figma's MRP/discount, sample products and Recently Viewed rail
+ * are not used in V1.
  */
-export function WishlistView({ catalog }: { catalog: Record<string, CatalogProduct> }) {
+export function WishlistView() {
   const hydrated = useStoreHydrated(useWishlistStore.persist);
   const productIds = useWishlistStore((s) => s.productIds);
   const remove = useWishlistStore((s) => s.remove);
   const [pending, setPending] = useState<CatalogProduct | null>(null);
-
-  // Ids that no longer resolve to a product are skipped.
-  const items = productIds.map((id) => catalog[id]).filter((p): p is CatalogProduct => !!p);
+  const { state, retry } = useCatalogueLoad(loadWishlistCatalogue);
 
   if (!hydrated) return null;
-  if (items.length === 0) {
+  if (productIds.length === 0) {
     return (
       <EmptyState icon="heart" title="Your wishlist is empty" actionLabel="Continue Shopping" actionHref="/" />
+    );
+  }
+
+  if (state.status === "loading") {
+    return (
+      <div aria-busy="true" aria-label="Loading wishlist" className="pb-10">
+        <div className="mt-[30px] h-[62px] border-y border-border/70" />
+        <ul aria-hidden className="mt-10 flex animate-pulse flex-col gap-[81px]">
+          {productIds.map((id) => (
+            <li key={id} className="flex gap-5 pr-[13px] pl-gutter">
+              <div className="aspect-[170/120] w-[43%] max-w-[170px] shrink-0 rounded-[11px] bg-surface" />
+              <div className="flex flex-1 flex-col gap-2 pt-1">
+                <div className="h-5 w-3/4 rounded bg-surface" />
+                <div className="h-4 w-1/2 rounded bg-surface" />
+                <div className="h-4 w-1/3 rounded bg-surface" />
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <div className="mt-[30px]">
+        <CatalogueError message={state.message} onRetry={retry} />
+      </div>
+    );
+  }
+
+  // Saved ids keep their order. Ids missing from the catalogue are not shown
+  // (nothing is made up for them) but stay saved; a note says so.
+  const catalog = state.data;
+  const items = productIds.map((id) => catalog[id]).filter((p): p is CatalogProduct => !!p);
+  const missingCount = productIds.length - items.length;
+  const missingNote =
+    missingCount > 0 ? (
+      <p role="status" className="mt-4 px-gutter text-[15px] text-ink/50">
+        {missingCount === 1
+          ? "1 saved item isn’t in the catalogue right now."
+          : `${missingCount} saved items aren’t in the catalogue right now.`}
+      </p>
+    ) : null;
+
+  if (items.length === 0) {
+    return (
+      <div>
+        {missingNote}
+        <EmptyState icon="heart" title="Your wishlist is empty" actionLabel="Continue Shopping" actionHref="/" />
+      </div>
     );
   }
 
@@ -48,6 +100,7 @@ export function WishlistView({ catalog }: { catalog: Record<string, CatalogProdu
           </span>
         </div>
       </div>
+      {missingNote}
 
       <ul aria-label="Wishlist" className="mt-10">
         {items.map((product, i) => (
