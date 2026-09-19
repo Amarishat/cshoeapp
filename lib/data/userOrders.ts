@@ -142,3 +142,21 @@ export async function getOrderByNumber(orderNumber: string): Promise<Order | nul
   if (error) throw new OrderError(`load order ${orderNumber}`, error);
   return data ? toOrder(data) : null;
 }
+
+/**
+ * The guest's orders, newest first (by created_at). Every database order has
+ * at least one item (place_order() refuses an empty Bag); an order without
+ * items could not be shown as an order card, so it is left out.
+ */
+export async function listOrders(): Promise<Order[]> {
+  const userId = (await ensureGuestSession()).user.id;
+  const { data, error } = await getSupabaseClient()
+    .from("orders")
+    .select(ORDER_COLUMNS)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .order("order_number", { ascending: false })
+    .overrideTypes<OrderRow[], { merge: false }>();
+  if (error) throw new OrderError("load your orders", error);
+  return data.filter((row) => row.order_items.length > 0).map(toOrder);
+}

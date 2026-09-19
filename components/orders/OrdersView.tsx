@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
+import { listOrders } from "@/lib/data/userOrders";
 import { orderMatches } from "@/lib/orders";
-import { useOrdersStore } from "@/lib/store/orders";
-import { useStoreHydrated } from "@/lib/store/useStoreHydrated";
+import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
 import { OrderCard } from "./OrderCard";
 
 function NoOrders() {
@@ -22,16 +23,33 @@ function NoOrders() {
 }
 
 /**
- * My Orders body — Figma frame 1:3647. Reads only from the orders store.
+ * My Orders body — Figma frame 1:3647. Orders are the guest's Supabase orders
+ * (newest first); orders saved only on this device by V1 are not shown.
  * V1 orders are always in progress, so "Completed Orders" is hidden unless a
  * delivered order exists.
  */
 export function OrdersView({ initialQuery = "" }: { initialQuery?: string }) {
-  const hydrated = useStoreHydrated(useOrdersStore.persist);
-  const orders = useOrdersStore((s) => s.orders);
+  const { state, retry } = useCatalogueLoad(listOrders);
   const [query, setQuery] = useState(initialQuery);
 
-  if (!hydrated) return <div className="flex-1" aria-busy="true" />;
+  if (state.status === "loading") {
+    return (
+      <div aria-busy="true" aria-label="Loading your orders" className="animate-pulse px-gutter pb-10">
+        <div className="mt-[30px] h-[55px] rounded-[9px] bg-surface" />
+        <div className="mt-10 h-6 w-40 rounded bg-surface" />
+        <div className="mt-6 h-[300px] rounded bg-surface" />
+      </div>
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <div className="mt-[30px]">
+        <CatalogueError title="Couldn’t load your orders." message={state.message} onRetry={retry} />
+      </div>
+    );
+  }
+
+  const orders = state.data;
   if (orders.length === 0) return <NoOrders />;
 
   const matching = orders.filter((order) => orderMatches(order, query));

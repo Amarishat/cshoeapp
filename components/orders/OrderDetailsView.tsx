@@ -4,15 +4,16 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent, type ReactNode } from "react";
+import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { ButtonLink } from "@/components/ui/Button";
 import { ComingSoonBadge } from "@/components/ui/ComingSoonBadge";
 import { Icon } from "@/components/ui/Icon";
 import { MOCK_ARRIVAL_LABEL, MOCK_DELIVERY_DAY } from "@/lib/data/delivery";
 import { upiApps } from "@/lib/data/paymentMethods";
+import { getOrderByNumber } from "@/lib/data/userOrders";
 import { orderDetailProgress, orderStatusView, orderSummaryText } from "@/lib/orders";
 import { formatAmount, formatPrice } from "@/lib/pricing";
-import { useOrdersStore } from "@/lib/store/orders";
-import { useStoreHydrated } from "@/lib/store/useStoreHydrated";
+import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
 import { useShareFeedback } from "@/lib/useShareFeedback";
 import type { Order, OrderLine } from "@/lib/types";
 import { OrderTimeline } from "./OrderTimeline";
@@ -253,13 +254,33 @@ function Details({ order }: { order: Order }) {
   );
 }
 
-/** Order Details — Figma frame 1:3878. Reads only from the orders store. */
+/**
+ * Order Details — Figma frame 1:3878. `orderId` is the Supabase order number
+ * from the URL; the order is read from Supabase (orders saved only on this
+ * device by V1 are not shown).
+ */
 export function OrderDetailsView({ orderId }: { orderId: string }) {
-  const hydrated = useStoreHydrated(useOrdersStore.persist);
-  const order = useOrdersStore((s) => s.orders.find((o) => o.id === orderId));
+  const { state, retry } = useCatalogueLoad(getOrderByNumber, orderId);
 
-  if (!hydrated) return <div className="flex-1" aria-busy="true" />;
+  if (state.status === "loading") {
+    return (
+      <div aria-busy="true" aria-label="Loading order" className="animate-pulse px-gutter pb-10">
+        <div className="mt-[30px] h-[55px] rounded-[9px] bg-surface" />
+        <div className="mt-10 h-6 w-44 rounded bg-surface" />
+        <div className="mt-6 h-[260px] rounded bg-surface" />
+        <div className="mt-10 h-[200px] rounded bg-surface" />
+      </div>
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <div className="mt-[30px]">
+        <CatalogueError title="Couldn’t load this order." message={state.message} onRetry={retry} />
+      </div>
+    );
+  }
 
+  const order = state.data;
   if (!order) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center px-gutter pt-24 pb-32 text-center">

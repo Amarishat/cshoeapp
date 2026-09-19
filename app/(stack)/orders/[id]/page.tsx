@@ -5,7 +5,7 @@ import { OrderDetailsView } from "@/components/orders/OrderDetailsView";
 
 export const metadata: Metadata = { title: "Order Details" };
 
-/** Order Details — Figma frame 1:3878. Orders live in the browser, so the id is resolved client-side. */
+/** Order Details — Figma frame 1:3878. The id is the Supabase order number; the order is loaded client-side (guest session). */
 export default async function OrderDetailsPage({ params }: PageProps<"/orders/[id]">) {
   const { id } = await params;
 
