@@ -10,15 +10,16 @@ export type CatalogueLoadState<T> =
 /**
  * Runs a Supabase catalogue loader in the browser, with loading / error
  * states and a retry. Errors are surfaced as-is — never replaced with mock
- * data. `load` must be a stable (module-level) function.
+ * data. `load` must be a stable (module-level) function; `key` (e.g. a slug)
+ * is passed to it and reloads when it changes.
  */
-export function useCatalogueLoad<T>(load: () => Promise<T>) {
+export function useCatalogueLoad<T>(load: (key: string) => Promise<T>, key = "") {
   const [state, setState] = useState<CatalogueLoadState<T>>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    load()
+    load(key)
       .then((data) => {
         if (!cancelled) setState({ status: "ready", data });
       })
@@ -30,7 +31,7 @@ export function useCatalogueLoad<T>(load: () => Promise<T>) {
     return () => {
       cancelled = true;
     };
-  }, [load, attempt]);
+  }, [load, key, attempt]);
 
   function retry() {
     setState({ status: "loading" });

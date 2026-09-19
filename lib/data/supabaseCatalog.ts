@@ -18,7 +18,8 @@ import type {
  * mapped onto the app's existing types where they fit. Any Supabase error is
  * thrown as a CatalogueError — never replaced with mock data.
  *
- * Not used by any screen yet; the mock data files remain the source for V1.
+ * Used by Home, Shop (+ Filters), Brand pages and the product page; other
+ * screens still read the mock data files.
  */
 
 export class CatalogueError extends Error {
@@ -236,9 +237,9 @@ export async function getProductBySlug(slug: string): Promise<CatalogueProductDe
   if (!data) return null;
 
   const { sizesUK, defaultSizeUK } = sizesOf(data.product_sizes);
-  const reviews = [...data.product_reviews].sort(
-    (a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id),
-  );
+  // Oldest first. There is no review-order column; ties (e.g. reviews seeded
+  // together) keep the order the database returns them in.
+  const reviews = [...data.product_reviews].sort((a, b) => a.created_at.localeCompare(b.created_at));
 
   return {
     ...toCatalogueProduct(data),

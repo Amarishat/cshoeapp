@@ -1,49 +1,28 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { AppHeader } from "@/components/layout/AppHeader";
-import { BagButton } from "@/components/layout/BagButton";
-import { ProductView } from "@/components/product/ProductView";
-import { ShareButton } from "@/components/product/ShareButton";
-import { getCustomization } from "@/lib/data/customizations";
-import { getProductDetail, getProductDetailSlugs } from "@/lib/data/productDetails";
+import { ProductPageView } from "@/components/product/ProductPageView";
+import { PRODUCT_PAGES } from "@/lib/data/productPages";
 
-// Only products with full detail data have a page for now.
+// Only products with a built page (V1: Sabrina 2 EP); any other slug is a 404.
 export const dynamicParams = false;
 
 export async function generateStaticParams() {
-  const slugs = await getProductDetailSlugs();
-  return slugs.map((slug) => ({ slug }));
+  return PRODUCT_PAGES.map((page) => ({ slug: page.slug }));
 }
 
 export async function generateMetadata({
   params,
 }: PageProps<"/products/[slug]">): Promise<Metadata> {
   const { slug } = await params;
-  const product = await getProductDetail(slug);
-  return { title: product?.name };
+  const page = PRODUCT_PAGES.find((p) => p.slug === slug);
+  return { title: page?.name };
 }
 
-/** Product — Figma frame 1:2478. */
+/** Product — Figma frame 1:2478. Product data is loaded from Supabase by ProductPageView. */
 export default async function ProductPage({ params }: PageProps<"/products/[slug]">) {
   const { slug } = await params;
-  const product = await getProductDetail(slug);
-  if (!product) notFound();
-  // Only products with a V1 customiser get a working Customise link.
-  const customisable = Boolean(await getCustomization(slug));
+  const page = PRODUCT_PAGES.find((p) => p.slug === slug);
+  if (!page) notFound();
 
-  return (
-    <>
-      <AppHeader
-        leading="back"
-        title={product.shortName}
-        actions={
-          <>
-            <ShareButton title={product.name} />
-            <BagButton />
-          </>
-        }
-      />
-      <ProductView product={product} customisable={customisable} />
-    </>
-  );
+  return <ProductPageView slug={page.slug} name={page.name} shortName={page.shortName} />;
 }
