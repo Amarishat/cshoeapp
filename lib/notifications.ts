@@ -1,8 +1,10 @@
 import { formatEventDate } from "@/lib/orders";
-import { formatPrice } from "@/lib/pricing";
-import type { Order } from "@/lib/types";
 
-/** A notification derived from a real order. Never stored — rebuilt from the Orders store. */
+/**
+ * A notification row as the Notifications screen shows it. Notifications are
+ * stored in Supabase (created by place_order(), one per order); `orderId` is
+ * the related order number, used for the link to the order.
+ */
 export interface OrderNotification {
   orderId: string;
   createdAt: string;
@@ -21,22 +23,6 @@ export interface NotificationDay {
 /** Notifications day heading, e.g. "19 Sep 2026". */
 export function formatNotificationDate(iso: string): string {
   return formatEventDate(iso);
-}
-
-/** One "Order confirmed" notification per order, newest first. */
-export function orderNotifications(orders: Order[]): OrderNotification[] {
-  return [...orders]
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-    .map((order) => {
-      const [first, ...rest] = order.lines;
-      const more = rest.length > 0 ? ` + ${rest.length} more` : "";
-      return {
-        orderId: order.id,
-        createdAt: order.createdAt,
-        title: "Order confirmed",
-        body: `Order ${order.id} · ${first?.name ?? "Your items"}${more} · ${formatPrice(order.totals.total)}`,
-      };
-    });
 }
 
 /** Groups (already sorted) notifications by local calendar day. */

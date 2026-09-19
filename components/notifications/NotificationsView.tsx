@@ -1,31 +1,65 @@
 "use client";
 
+import { useState } from "react";
 import { AppHeader } from "@/components/layout/AppHeader";
+import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { groupByDay, orderNotifications } from "@/lib/notifications";
-import { useNotificationsStore } from "@/lib/store/notifications";
-import { useOrdersStore } from "@/lib/store/orders";
-import { useStoreHydrated } from "@/lib/store/useStoreHydrated";
+import { groupByDay, type OrderNotification } from "@/lib/notifications";
+import {
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+  type UserNotification,
+} from "@/lib/data/userNotifications";
+import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
 import { NotificationItem } from "./NotificationItem";
 
 /**
- * Notifications — Figma 1:6944 (default) / 1:6867 (unread highlight). V1
- * content is derived only from real orders in the Orders store: one "Order
- * confirmed" notification per order, grouped by day. Only read order ids are
- * stored. Figma's marketing notifications are not used.
+ * Notifications — Figma 1:6944 (default) / 1:6867 (unread highlight). The
+ * guest's notifications from Supabase ("Order confirmed", created with each
+ * order), grouped by day; unread = no read_at. Figma's marketing
+ * notifications are not used.
  */
 export function NotificationsView() {
-  const ordersReady = useStoreHydrated(useOrdersStore.persist);
-  const readReady = useStoreHydrated(useNotificationsStore.persist);
-  const orders = useOrdersStore((s) => s.orders);
-  const readOrderIds = useNotificationsStore((s) => s.readOrderIds);
-  const markRead = useNotificationsStore((s) => s.markRead);
-  const markAllRead = useNotificationsStore((s) => s.markAllRead);
+  const { state, retry } = useCatalogueLoad(listNotifications);
+  // Ids marked read in Supabase since the list was loaded (so it updates without reloading).
+  const [readNow, setReadNow] = useState<ReadonlySet<string>>(() => new Set());
+  const [markAllError, setMarkAllError] = useState("");
+  const [markingAll, setMarkingAll] = useState(false);
 
-  const ready = ordersReady && readReady;
-  const notifications = orderNotifications(orders);
-  const unreadIds = notifications.map((n) => n.orderId).filter((id) => !readOrderIds.includes(id));
-  const days = groupByDay(notifications);
+  const ready = state.status === "ready";
+  // Notifications without an order have nothing to open; only order ones are listed.
+  const rows = ready ? state.data.filter((n): n is UserNotification & { orderNumber: string } => !!n.orderNumber) : [];
+  const isUnread = (n: UserNotification) => n.readAt === null && !readNow.has(n.id);
+  const unread = rows.filter(isUnread);
+  // One notification per order, so the order number identifies it within the list.
+  const byOrder = new Map(rows.map((n) => [n.orderNumber, n]));
+  const days = groupByDay(
+    rows.map((n): OrderNotification => ({ orderId: n.orderNumber, createdAt: n.createdAt, title: n.title, body: n.body })),
+  );
+
+  function open(n: UserNotification) {
+    if (!isUnread(n)) return;
+    // Keeps running after the row's link navigates to the order.
+    markNotificationRead(n.id)
+      .then(() => setReadNow((ids) => new Set(ids).add(n.id)))
+      .catch(() => {
+        // Stays unread; it can be opened or marked read again.
+      });
+  }
+
+  async function markAll() {
+    setMarkingAll(true);
+    setMarkAllError("");
+    try {
+      await markAllNotificationsRead();
+      setReadNow((ids) => new Set([...ids, ...unread.map((n) => n.id)]));
+    } catch (error) {
+      setMarkAllError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setMarkingAll(false);
+    }
+  }
 
   return (
     <div className="flex flex-1 flex-col pb-10">
@@ -34,8 +68,8 @@ export function NotificationsView() {
         actions={
           <button
             type="button"
-            disabled={!ready || unreadIds.length === 0}
-            onClick={() => markAllRead(unreadIds)}
+            disabled={!ready || unread.length === 0 || markingAll}
+            onClick={() => void markAll()}
             className="text-[15px] whitespace-nowrap disabled:text-ink/30"
           >
             Mark all as read
@@ -45,7 +79,33 @@ export function NotificationsView() {
       {/* Figma 1:6948: #CCC 70% line under the header */}
       <hr className="mt-4 border-border/70" />
 
-      {/* Wait for the saved orders/read state so the list doesn't flash. */}
+      {markAllError && (
+        <p role="alert" className="mt-4 px-gutter text-[15px] text-danger [overflow-wrap:anywhere]">
+          {markAllError}
+        </p>
+      )}
+
+      {state.status === "loading" && (
+        <div aria-busy="true" aria-label="Loading notifications" className="animate-pulse px-gutter pt-[29px]">
+          <div className="h-4 w-24 rounded bg-surface" />
+          {[0, 1].map((i) => (
+            <div key={i} className="mt-4 flex gap-3">
+              <div className="size-[45px] shrink-0 rounded-full bg-surface" />
+              <div className="flex flex-1 flex-col gap-2 pt-1">
+                <div className="h-4 w-1/3 rounded bg-surface" />
+                <div className="h-3.5 w-5/6 rounded bg-surface" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {state.status === "error" && (
+        <div className="mt-[30px]">
+          <CatalogueError title="Couldn’t load notifications." message={state.message} onRetry={retry} />
+        </div>
+      )}
+
       {ready &&
         (days.length === 0 ? (
           <EmptyState icon="bell" title="No notifications yet" actionLabel="Continue Shopping" actionHref="/" />
@@ -65,15 +125,14 @@ export function NotificationsView() {
                   <span className="text-[13px] font-medium text-[#4a5568]/70">{day.label}</span>
                 </h2>
                 <ul className={i > 0 ? "-mx-gutter" : undefined}>
-                  {day.items.map((n) => (
-                    <li key={n.orderId}>
-                      <NotificationItem
-                        notification={n}
-                        unread={unreadIds.includes(n.orderId)}
-                        onOpen={() => markRead(n.orderId)}
-                      />
-                    </li>
-                  ))}
+                  {day.items.map((item) => {
+                    const n = byOrder.get(item.orderId)!;
+                    return (
+                      <li key={n.id}>
+                        <NotificationItem notification={item} unread={isUnread(n)} onOpen={() => open(n)} />
+                      </li>
+                    );
+                  })}
                 </ul>
               </section>
             ))}

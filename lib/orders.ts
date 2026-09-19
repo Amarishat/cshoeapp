@@ -1,5 +1,5 @@
-import { computeBagTotals, formatAmount, isSelected } from "@/lib/pricing";
-import type { Address, BagProduct, CartItem, Order, OrderStatus, UpiAppId } from "@/lib/types";
+import { formatAmount } from "@/lib/pricing";
+import type { Order, OrderStatus } from "@/lib/types";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -142,54 +142,6 @@ export function orderMatches(order: Order, query: string): boolean {
   return (
     order.id.toLowerCase().includes(q) || order.lines.some((line) => line.name.toLowerCase().includes(q))
   );
-}
-
-/**
- * Builds the mock order for the simulated payment from the selected Bag
- * items. Totals use the same computeBagTotals as the Bag and Order Summary.
- */
-export function buildOrder({
-  bagItems,
-  catalog,
-  address,
-  upiApp,
-}: {
-  bagItems: CartItem[];
-  catalog: Record<string, BagProduct>;
-  address: Address;
-  upiApp: UpiAppId;
-}): Order {
-  const selected = bagItems.filter((item) => isSelected(item) && catalog[item.productId]);
-  const totals = computeBagTotals(bagItems, catalog);
-
-  return {
-    id: `OD${Date.now()}`,
-    createdAt: new Date().toISOString(),
-    status: "confirmed",
-    lines: selected.map((item) => {
-      const product = catalog[item.productId];
-      return {
-        bagItemId: item.id,
-        productId: item.productId,
-        name: product.name,
-        category: product.category,
-        image: product.image,
-        size: item.size,
-        quantity: item.quantity,
-        unitPrice: product.price,
-        customization: item.customization ? { ...item.customization } : undefined,
-      };
-    }),
-    address: { ...address },
-    payment: { method: "upi", app: upiApp },
-    totals: {
-      subtotal: totals.subtotal,
-      discount: 0,
-      delivery: totals.delivery,
-      platformFee: totals.platformFee,
-      total: totals.total,
-    },
-  };
 }
 
 /**
