@@ -1,22 +1,42 @@
 "use client";
 
+import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { ButtonLink } from "@/components/ui/Button";
 import { MOCK_DELIVERY_DATE } from "@/lib/data/delivery";
+import { getOrderByNumber } from "@/lib/data/userOrders";
 import { trackTimeline } from "@/lib/orders";
-import { useOrdersStore } from "@/lib/store/orders";
-import { useStoreHydrated } from "@/lib/store/useStoreHydrated";
+import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
 import { TrackTimeline } from "./TrackTimeline";
 
 /**
  * Track Order — Figma 1:4176 (with the "Status" header from 1:4232).
- * Reads only from the orders store. No live tracking, courier or map in V1.
+ * `orderId` is the Supabase order number from the URL; the order is read from
+ * Supabase (orders saved only on this device by V1 are not shown). No live
+ * tracking, courier or map in V1.
  */
 export function TrackView({ orderId }: { orderId: string }) {
-  const hydrated = useStoreHydrated(useOrdersStore.persist);
-  const order = useOrdersStore((s) => s.orders.find((o) => o.id === orderId));
+  const { state, retry } = useCatalogueLoad(getOrderByNumber, orderId);
 
-  if (!hydrated) return <div className="flex-1" aria-busy="true" />;
+  if (state.status === "loading") {
+    return (
+      <div aria-busy="true" aria-label="Loading order status" className="mt-[30px] animate-pulse px-gutter pb-10">
+        <div className="h-6 w-2/3 rounded bg-surface" />
+        <div className="mt-4 h-10 w-1/2 rounded bg-surface" />
+        <div className="mt-8 h-6 w-1/3 rounded bg-surface" />
+        <div className="mt-8 h-6 w-1/2 rounded bg-surface" />
+        <div className="mt-8 h-6 w-2/3 rounded bg-surface" />
+      </div>
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <div className="mt-[30px]">
+        <CatalogueError title="Couldn’t load this order." message={state.message} onRetry={retry} />
+      </div>
+    );
+  }
 
+  const order = state.data;
   if (!order) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center px-gutter pt-24 pb-32 text-center">
