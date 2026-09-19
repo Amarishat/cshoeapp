@@ -43,6 +43,8 @@ interface BagState {
   setQuantity: (id: string, quantity: number) => Promise<string | null>;
   setSelected: (id: string, selected: boolean) => Promise<string | null>;
   setAllSelected: (selected: boolean) => Promise<string | null>;
+  /** Reloads the Bag from Supabase (e.g. after place_order() removed the ordered rows). */
+  refresh: () => Promise<string | null>;
 }
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -120,6 +122,11 @@ export const useBagStore = create<BagState>()((set, get) => {
       change(
         () => setAllCartSelected(selected),
         (items) => items.map((i) => ({ ...i, selected })),
+      ),
+    refresh: () =>
+      change(
+        async () => {},
+        () => listCart(),
       ),
   };
 });

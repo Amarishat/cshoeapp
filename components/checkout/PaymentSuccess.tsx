@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { MOCK_DELIVERY_DATE } from "@/lib/data/delivery";
+import { getOrderByNumber } from "@/lib/data/userOrders";
 import { formatPrice } from "@/lib/pricing";
 import { useBagStore } from "@/lib/store/bag";
-import { useOrdersStore } from "@/lib/store/orders";
-import { useStoreHydrated } from "@/lib/store/useStoreHydrated";
+import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
 
 /**
  * Payment Successful — Figma frame 1:4956. Figma's Lottie animation is
@@ -15,22 +16,33 @@ import { useStoreHydrated } from "@/lib/store/useStoreHydrated";
  * Figma's 548px animation area, the check, heading, order details and
  * buttons are centred as one group. The arrival date is the same V1 estimate
  * shown on My Orders, Order Details and Track.
+ *
+ * The order is read from Supabase by the order number place_order() returned
+ * (`?order=`); everything shown comes from the database order.
  */
-export function PaymentSuccess() {
+export function PaymentSuccess({ orderNumber }: { orderNumber: string | null }) {
   const router = useRouter();
-  const ordersHydrated = useStoreHydrated(useOrdersStore.persist);
-  const order = useOrdersStore((s) => s.orders.find((o) => o.id === s.lastPlacedOrderId));
-  const removeItems = useBagStore((s) => s.removeItems);
+  const refreshBag = useBagStore((s) => s.refresh);
+  const { state, retry } = useCatalogueLoad(getOrderByNumber, orderNumber ?? "");
+  const order = state.status === "ready" ? state.data : null;
+  const missing = !orderNumber || (state.status === "ready" && !state.data);
 
-  // Clear the items that were just ordered from the Bag (idempotent).
+  // place_order() already removed the ordered rows in Supabase: reload the Bag's copy.
   useEffect(() => {
-    if (order) removeItems(order.lines.map((line) => line.bagItemId));
-  }, [order, removeItems]);
+    void refreshBag();
+  }, [refreshBag]);
 
   useEffect(() => {
-    if (ordersHydrated && !order) router.replace("/");
-  }, [ordersHydrated, order, router]);
+    if (missing) router.replace("/");
+  }, [missing, router]);
 
+  if (state.status === "error") {
+    return (
+      <div className="flex flex-1 flex-col justify-center py-10">
+        <CatalogueError title="Couldn’t load your order." message={state.message} onRetry={retry} />
+      </div>
+    );
+  }
   if (!order) return <div className="flex-1" aria-busy="true" />;
 
   return (

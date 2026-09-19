@@ -9,11 +9,10 @@ import { UpiApps } from "@/components/payment/UpiApps";
 import { loadBagCatalogue } from "@/lib/data/bagCatalogue";
 import { DEFAULT_UPI_APP, paymentMethods, upiApps } from "@/lib/data/paymentMethods";
 import { listAddresses } from "@/lib/data/userAddresses";
-import { buildOrder } from "@/lib/orders";
+import { placeOrder } from "@/lib/data/userOrders";
 import { computeBagTotals, isSelected } from "@/lib/pricing";
 import { useBagStore } from "@/lib/store/bag";
 import { useCheckoutStore } from "@/lib/store/checkout";
-import { useOrdersStore } from "@/lib/store/orders";
 import { useStoreHydrated } from "@/lib/store/useStoreHydrated";
 import type { Address, BagProduct, UpiAppId } from "@/lib/types";
 import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
@@ -32,8 +31,9 @@ async function loadPayment() {
  * Checkout step 3 — Figma frame 1:4858 (everything below the header).
  * Prototype only: "paying" is simulated; no payment gateway is involved.
  * Products and the delivery address come from Supabase; the selected address
- * id and the Bag items come from the device's checkout / bag stores. Payment
- * can't start until both have loaded.
+ * id comes from the checkout store and the Bag from Supabase (bag store).
+ * Payment can't start until both have loaded. After the simulated payment the
+ * order is placed by the database function place_order().
  */
 export function PaymentView() {
   const router = useRouter();
@@ -82,7 +82,7 @@ export function PaymentView() {
 function PaymentContents({ catalog, address }: { catalog: Record<string, BagProduct>; address: Address }) {
   const router = useRouter();
   const bagItems = useBagStore((s) => s.items);
-  const placeOrder = useOrdersStore((s) => s.placeOrder);
+  const [orderError, setOrderError] = useState("");
 
   const [upiOpen, setUpiOpen] = useState(true);
   const [upiApp, setUpiApp] = useState<UpiAppId>(DEFAULT_UPI_APP);
@@ -102,12 +102,26 @@ function PaymentContents({ catalog, address }: { catalog: Record<string, BagProd
   function pay() {
     if (processing || !orderable) return;
     setProcessing(true);
-    timer.current = setTimeout(() => {
-      // Snapshot the order from the current Bag + checkout state, then show success.
-      // The success page clears the ordered items from the Bag once it opens.
-      placeOrder(buildOrder({ bagItems: useBagStore.getState().items, catalog, address, upiApp }));
-      router.replace("/payment-success");
-    }, PROCESSING_MS);
+    setOrderError("");
+    timer.current = setTimeout(() => void submitOrder(), PROCESSING_MS);
+  }
+
+  /**
+   * After the simulated payment: the database prices the selected Bag rows,
+   * creates the order and removes those rows in one transaction. Only a
+   * successful order goes to Payment Success; on failure nothing was ordered
+   * and the Bag is unchanged.
+   */
+  async function submitOrder() {
+    try {
+      const orderNumber = await placeOrder(address.id, upiApp);
+      // Payment Success reloads the Bag (the ordered rows are gone from Supabase);
+      // doing it here would make the checkout guard send this page to /bag.
+      router.replace(`/payment-success?order=${encodeURIComponent(orderNumber)}`);
+    } catch (error) {
+      setProcessing(false);
+      setOrderError(error instanceof Error ? error.message : String(error));
+    }
   }
 
   return (
@@ -119,6 +133,12 @@ function PaymentContents({ catalog, address }: { catalog: Record<string, BagProd
       <div className="mt-10 px-gutter">
         <TotalAmountBar totals={totals} />
       </div>
+
+      {orderError && (
+        <div className="mt-6">
+          <CatalogueError title="Your order couldn’t be placed." message={orderError} onRetry={pay} />
+        </div>
+      )}
 
       <ul aria-label="Payment methods" className="mt-10 border-t border-border/70">
         {paymentMethods.map((method) => (
