@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { cn } from "@/lib/cn";
 import { loadAdminCustomizers } from "@/lib/data/adminCustomizer";
@@ -72,13 +73,21 @@ export function AdminCustomizerView() {
                   <th scope="col" className={cn(head, "text-right")}>
                     Colours
                   </th>
+                  <th scope="col" className={head}>
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {state.data.map((config) => (
                   <tr key={config.productId} className="border-t border-border">
                     <td className={cell}>
-                      <span className="block font-medium">{config.productName}</span>
+                      <Link
+                        href={`/admin/customizer/${config.productId}`}
+                        className="block font-medium underline decoration-transparent hover:decoration-inherit"
+                      >
+                        {config.productName}
+                      </Link>
                       <span className="block text-caption text-ink/50">
                         {config.title} · {config.displayCategory}
                       </span>
@@ -86,6 +95,15 @@ export function AdminCustomizerView() {
                     <td className={cn(cell, "text-ink/60")}>{config.productSlug}</td>
                     <td className={cn(cell, "text-right tabular-nums")}>{config.partCount}</td>
                     <td className={cn(cell, "text-right tabular-nums")}>{config.colourCount}</td>
+                    <td className={cn(cell, "text-right")}>
+                      <Link
+                        href={`/admin/customizer/${config.productId}`}
+                        aria-label={`View the ${config.productName} customiser`}
+                        className="rounded-[9px] border border-border px-3 py-1.5 text-secondary font-medium hover:bg-surface"
+                      >
+                        View
+                      </Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>
