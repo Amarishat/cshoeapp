@@ -47,6 +47,15 @@ function ProductRow({ product }: { product: CatalogueProduct }) {
       </td>
       <td className={cell}>{product.brandName}</td>
       <td className={cn(cell, "whitespace-nowrap tabular-nums")}>{formatPrice(product.price)}</td>
+      <td className={cell}>
+        {product.discountLabel ? (
+          <span className="inline-flex items-center rounded-full bg-accent/10 px-2.5 py-1 text-caption font-medium text-accent">
+            {product.discountLabel}
+          </span>
+        ) : (
+          <span className="text-ink/40">—</span>
+        )}
+      </td>
       <td className={cell}>{AUDIENCE_LABEL[product.audience]}</td>
       <td className={cell}>
         <Flag on={product.customizable} yes="Customisable" no="—" />
@@ -130,6 +139,9 @@ export function AdminProductsView() {
                   </th>
                   <th scope="col" className={head}>
                     Price
+                  </th>
+                  <th scope="col" className={head}>
+                    Discount
                   </th>
                   <th scope="col" className={head}>
                     Audience
