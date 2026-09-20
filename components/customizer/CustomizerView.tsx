@@ -21,6 +21,7 @@ export function CustomizerView({ config }: { config: CustomizationConfig }) {
   const addToBag = useBagStore((s) => s.add);
   const selection = useCustomizationStore((s) => s.drafts[config.productId] ?? EMPTY);
   const setColour = useCustomizationStore((s) => s.setColour);
+  const clearDraft = useCustomizationStore((s) => s.clear);
 
   const [sizeUK, setSizeUK] = useState(config.defaultSizeUK);
   const [quantity, setQuantity] = useState(1);
@@ -60,6 +61,8 @@ export function CustomizerView({ config }: { config: CustomizationConfig }) {
       setAddError(error);
       return;
     }
+    // Saved: start the next design fresh (the Bag row keeps this one).
+    if (customised) clearDraft(config.productId);
     setJustAdded(true);
     clearTimeout(addedTimer.current);
     addedTimer.current = setTimeout(() => setJustAdded(false), 2000);

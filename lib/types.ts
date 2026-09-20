@@ -203,6 +203,14 @@ export type UpiAppId = "gpay" | "phonepe" | "paytm";
 export type OrderStatus = "confirmed" | "shipped" | "out_for_delivery" | "delivered";
 
 /** One product line of a placed order — a snapshot, so later catalogue changes don't alter it. */
+/** A part/colour choice as it was when the order was placed (names kept). */
+export interface OrderCustomizationChoice {
+  partId: string;
+  partName: string;
+  colourId: string;
+  colourName: string;
+}
+
 export interface OrderLine {
   /** The Bag item this came from (used to clear it from the Bag). */
   bagItemId: string;
@@ -214,9 +222,11 @@ export interface OrderLine {
   quantity: number;
   unitPrice: number;
   customization?: CustomizationSelection;
+  /** The same choices with their names, for orders read back from the database. */
+  customizationChoices?: OrderCustomizationChoice[];
 }
 
-/** A mock order created by the simulated payment (V1 — no real gateway). */
+/** An order (created by the database function place_order()). */
 export interface Order {
   /** e.g. "OD1789812345678" (Figma order ids look like "OD99997989899"). */
   id: string;

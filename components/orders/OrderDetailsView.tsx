@@ -70,6 +70,16 @@ function LineRow({ line }: { line: OrderLine }) {
             {formatPrice(line.unitPrice)} × {line.quantity}
           </p>
         )}
+        {/* The parts and colours chosen for this item, as stored with the order. */}
+        {line.customizationChoices && line.customizationChoices.length > 0 && (
+          <ul className="mt-[5px] flex flex-col gap-px text-caption leading-[18px] text-ink/50">
+            {line.customizationChoices.map((choice) => (
+              <li key={choice.partId} className="truncate">
+                {choice.partName} — {choice.colourName}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       <div
         className="relative h-[82px] w-[130px] shrink-0"

@@ -4,13 +4,58 @@ import Image from "next/image";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { cn } from "@/lib/cn";
+import { getCustomizationConfig } from "@/lib/data/supabaseCatalog";
 import { formatPrice, isSelected } from "@/lib/pricing";
-import type { BagProduct, CartItem } from "@/lib/types";
+import type { BagProduct, CartItem, CustomizationSelection } from "@/lib/types";
+import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
+
+// One request per customisable product, shared by every row of that product.
+const configs = new Map<string, Promise<Awaited<ReturnType<typeof getCustomizationConfig>>>>();
+
+function loadCustomizationConfig(productId: string) {
+  const pending = configs.get(productId) ?? getCustomizationConfig(productId);
+  configs.set(productId, pending);
+  return pending;
+}
+
+/**
+ * The chosen parts and colours of a customised item, in the customiser's part
+ * order and with its names (e.g. "Vamp — Red"). Nothing is shown until the
+ * customiser's parts and colours have loaded, or if they can't be loaded.
+ */
+function CustomizationDetails({
+  productId,
+  selection,
+}: {
+  productId: string;
+  selection: CustomizationSelection;
+}) {
+  const { state } = useCatalogueLoad(loadCustomizationConfig, productId);
+  const config = state.status === "ready" ? state.data : null;
+  if (!config) return null;
+
+  const chosen = config.parts.flatMap((part) => {
+    const colour = config.colours.find((c) => c.id === selection[part.id]);
+    return colour ? [{ id: part.id, label: `${part.name} — ${colour.name}` }] : [];
+  });
+  if (chosen.length === 0) return null;
+
+  return (
+    <ul className="mt-[5px] flex flex-col gap-px text-caption leading-[18px] text-ink/50">
+      {chosen.map((row) => (
+        <li key={row.id} className="truncate">
+          {row.label}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 /**
  * One bag item (Figma 1:2782 / 1:2755 / 1:2734): checkbox, shoe cut-out with a
  * soft shadow, "Qty" + pill stepper underneath; details column 186px in with
- * an optional "Customised" label, name, category, size, MRP and tax note.
+ * an optional "Customised" label, name, category, size, MRP, tax note and,
+ * for a customised item, the parts and colours chosen for it.
  */
 export function BagItemRow({
   item,
@@ -91,6 +136,9 @@ export function BagItemRow({
           <br />
           (Also includes all applicable duties)
         </p>
+        {customised && item.customization && (
+          <CustomizationDetails productId={item.productId} selection={item.customization} />
+        )}
       </div>
     </li>
   );

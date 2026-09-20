@@ -70,7 +70,7 @@ interface OrderRow {
     quantity: number;
     unit_price: number;
     is_customized: boolean;
-    order_item_customizations: { part_id: string; colour_id: string }[];
+    order_item_customizations: { part_id: string; part_name: string; colour_id: string; colour_name: string }[];
   }[];
 }
 
@@ -79,7 +79,7 @@ const ORDER_COLUMNS =
   "ship_state, ship_city, ship_area, ship_street, ship_type, payment_method, upi_app, " +
   "subtotal, discount, delivery_fee, platform_fee, total, " +
   "order_items(id, product_id, product_name, product_category, image_url, image_fit, size_uk, " +
-  "quantity, unit_price, is_customized, order_item_customizations(part_id, colour_id))";
+  "quantity, unit_price, is_customized, order_item_customizations(part_id, part_name, colour_id, colour_name))";
 
 /** A database order in the app's existing Order shape (its id is the order number). */
 function toOrder(row: OrderRow): Order {
@@ -104,7 +104,17 @@ function toOrder(row: OrderRow): Order {
         size: `UK ${Number(item.size_uk)}`,
         quantity: item.quantity,
         unitPrice: item.unit_price,
-        ...(item.is_customized ? { customization } : {}),
+        ...(item.is_customized
+          ? {
+              customization,
+              customizationChoices: item.order_item_customizations.map((c) => ({
+                partId: c.part_id,
+                partName: c.part_name,
+                colourId: c.colour_id,
+                colourName: c.colour_name,
+              })),
+            }
+          : {}),
       };
     }),
     address: {
