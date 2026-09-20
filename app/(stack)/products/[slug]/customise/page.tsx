@@ -1,30 +1,27 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { CustomizerView } from "@/components/customizer/CustomizerView";
-import { AppHeader } from "@/components/layout/AppHeader";
-import { BagButton } from "@/components/layout/BagButton";
-import { ShareButton } from "@/components/product/ShareButton";
-import { getCustomization, getCustomizationSlugs } from "@/lib/data/customizations";
+import { CustomizerPageView } from "@/components/customizer/CustomizerPageView";
+import { CUSTOMIZER_PAGES } from "@/lib/data/customizerPages";
 
-// V1: only products with a customisation config (Nike Air Force) have a customiser.
+// V1: only products with a built customiser (Nike Air Force); any other slug is a 404.
 export const dynamicParams = false;
 
 export async function generateStaticParams() {
-  const slugs = await getCustomizationSlugs();
-  return slugs.map((slug) => ({ slug }));
+  return CUSTOMIZER_PAGES.map((page) => ({ slug: page.slug }));
 }
 
 export async function generateMetadata({
   params,
 }: PageProps<"/products/[slug]/customise">): Promise<Metadata> {
   const { slug } = await params;
-  const config = await getCustomization(slug);
-  return { title: config ? `Customise ${config.title}` : undefined };
+  const page = CUSTOMIZER_PAGES.find((p) => p.slug === slug);
+  return { title: page ? `Customise ${page.title}` : undefined };
 }
 
 /**
- * Customizer — Figma frame 1:6606. With `?item=<cart item id>` (from the
- * Bag's Edit link) it edits that Bag item's design instead of adding a new one.
+ * Customizer — Figma frame 1:6606. The customisation config is loaded from
+ * Supabase by CustomizerPageView. With `?item=<cart item id>` (from the Bag's
+ * Edit link) it edits that Bag item's design instead of adding a new one.
  */
 export default async function CustomisePage({
   params,
@@ -32,27 +29,14 @@ export default async function CustomisePage({
 }: PageProps<"/products/[slug]/customise">) {
   const { slug } = await params;
   const { item } = await searchParams;
-  const config = await getCustomization(slug);
-  if (!config) notFound();
+  const page = CUSTOMIZER_PAGES.find((p) => p.slug === slug);
+  if (!page) notFound();
 
   return (
-    <>
-      {/* Back: history when there is one, otherwise the Customise Hub (Figma 1:6608 → 1:3101). */}
-      <AppHeader
-        leading="back"
-        backHref="/customise"
-        title={config.title}
-        titleClassName="font-medium"
-        actions={
-          <>
-            <ShareButton title={config.title} icon="shareOcticon" />
-            <BagButton />
-          </>
-        }
-      />
-      {/* Figma 1:6686: full-width #CCC line at 70% under the header. */}
-      <hr className="mt-[11px] border-border/70" />
-      <CustomizerView config={config} cartItemId={typeof item === "string" ? item : null} />
-    </>
+    <CustomizerPageView
+      slug={page.slug}
+      title={page.title}
+      cartItemId={typeof item === "string" ? item : null}
+    />
   );
 }

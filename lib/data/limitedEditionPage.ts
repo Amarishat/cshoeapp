@@ -1,14 +1,15 @@
+import { getCustomizationConfig } from "@/lib/data/supabaseCatalog";
 import type { CustomizationColour, ViewerAngle, WordmarkPlacement } from "@/lib/types";
-import { getCustomization } from "./customizations";
 
 /**
- * Limited Edition screen (Figma 1:2893). V1 features the existing Nike Air
- * Force — its name, price, sizes and red shoe image come from the Customizer
- * config. Only the layout below is specific to this screen (viewer px, same
- * space as the Customizer's viewer). No drop dates, stock or other products.
+ * Limited Edition screen (Figma 1:2893), read from Supabase. V1 features the
+ * existing Nike Air Force — its name, price, sizes, wordmark and red shoe
+ * image come from that product's customisation config. Only the layout below
+ * is specific to this screen (viewer px, same space as the Customizer's
+ * viewer). No drop dates, stock or other products.
  */
 const LAYOUT = {
-  slug: "nike-air-force",
+  productId: "nike-air-force",
   // Hero shoe: 285×160 image rotated -38° in a 323×301 frame at (24, 69).
   hero: { frame: [24.13, 69.38, 322.85, 301.28], size: [284.77, 159.89], rotate: -37.99 },
   wordmark: { x: 254.81, y: 235.5, size: 160 } satisfies WordmarkPlacement,
@@ -29,10 +30,13 @@ export interface LimitedEdition {
   colourways: CustomizationColour[];
 }
 
-export async function getLimitedEdition(): Promise<LimitedEdition | undefined> {
-  const product = await getCustomization(LAYOUT.slug);
-  if (!product) return undefined;
+/** The featured product, in Figma's layout; anything missing is an error, not a gap. */
+export async function loadLimitedEdition(): Promise<LimitedEdition> {
+  const product = await getCustomizationConfig(LAYOUT.productId);
+  if (!product) throw new Error(`Product "${LAYOUT.productId}" has no customisation in the catalogue.`);
   const [image] = product.angles;
+  if (!image) throw new Error(`Product "${LAYOUT.productId}" has no shoe image.`);
+
   return {
     productId: product.productId,
     name: product.title,

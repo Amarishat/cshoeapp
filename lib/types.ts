@@ -58,6 +58,18 @@ export interface Product {
 /** What a product card needs (a catalogue product or a product-page listing). */
 export type ProductCardData = Pick<Product, "id" | "slug" | "name" | "category" | "price" | "rating" | "image">;
 
+/** A product as lists outside Home need it (e.g. Wishlist). */
+export interface CatalogProduct {
+  id: string;
+  name: string;
+  category: string;
+  /** Current selling price in rupees. */
+  price: number;
+  image: ListImage;
+  /** Product page URL — only when that page is built (never a 404). */
+  href?: string;
+}
+
 /** One slide of the product page gallery. */
 export interface GalleryImage {
   src: string;

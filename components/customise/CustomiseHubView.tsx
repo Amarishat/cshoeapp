@@ -3,10 +3,13 @@
 import Image from "next/image";
 import { useState } from "react";
 import { SectionHeader } from "@/components/home/SectionHeader";
+import { CardPlaceholder, CatalogueError } from "@/components/product/CatalogueStatus";
 import { ProductCard } from "@/components/product/ProductCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Tabs } from "@/components/ui/Tabs";
-import type { Audience, Brand, Product } from "@/lib/types";
+import { HUB_BRANDS, loadCustomiseHub } from "@/lib/data/customiseHub";
+import type { Audience, Brand } from "@/lib/types";
+import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
 
 type HubFilter = "all" | Audience;
 
@@ -50,40 +53,70 @@ function BrandCircles({ brands }: { brands: Brand[] }) {
   );
 }
 
+/** Pulsing stand-in with the brand circles' footprint. */
+function BrandCirclesPlaceholder() {
+  return (
+    <div aria-hidden className="no-scrollbar flex animate-pulse gap-[22px] overflow-x-auto px-gutter">
+      {HUB_BRANDS.map((brand) => (
+        <div key={brand.id} className="size-[69px] shrink-0 rounded-full bg-surface" />
+      ))}
+    </div>
+  );
+}
+
 /**
  * Customise Hub body — Figma frame 1:3101, V1: brand circles, All/Men/Women/
- * Kids tabs and the shoes that have a working Customizer. Figma's spotlight
- * carousel, highlights, photo rails and banner collage are sample content and
- * are not used.
+ * Kids tabs and the shoes that have a working Customizer, all from Supabase.
+ * Figma's spotlight carousel, highlights, photo rails and banner collage are
+ * sample content and are not used.
  */
-export function CustomiseHubView({ products, brands }: { products: Product[]; brands: Brand[] }) {
+export function CustomiseHubView() {
+  const { state, retry } = useCatalogueLoad(loadCustomiseHub);
   const [filter, setFilter] = useState<HubFilter>("all");
+  const data = state.status === "ready" ? state.data : null;
+  const products = data?.products ?? [];
   const shown = filter === "all" ? products : products.filter((p) => p.audience === filter);
   const label = filters.find((f) => f.value === filter)?.label;
 
   return (
     <div className="pb-10">
-      <div className="mt-8">
-        <BrandCircles brands={brands} />
+      {/* On an error the circles are left out; the error below says why. */}
+      <div className="mt-8" aria-busy={state.status === "loading"}>
+        {data ? <BrandCircles brands={data.brands} /> : state.status === "loading" && <BrandCirclesPlaceholder />}
       </div>
 
       <div className="mt-10">
         <Tabs ariaLabel="Customise for" items={filters} value={filter} onValueChange={setFilter} />
       </div>
 
-      <section aria-labelledby="customise-shoes" className="mt-10">
+      <section aria-labelledby="customise-shoes" aria-busy={state.status === "loading"} className="mt-10">
         <SectionHeader id="customise-shoes" title="Customisable Shoes" />
-        {shown.length > 0 ? (
-          <ul className="mt-6 grid grid-cols-2 gap-x-4 gap-y-6 px-gutter">
-            {shown.map((product) => (
-              <li key={product.id}>
-                <ProductCard product={product} action="customise" />
+        {state.status === "loading" && (
+          <ul aria-hidden className="mt-6 grid grid-cols-2 gap-x-4 gap-y-6 px-gutter">
+            {Array.from({ length: 2 }, (_, i) => (
+              <li key={i}>
+                <CardPlaceholder />
               </li>
             ))}
           </ul>
-        ) : (
-          <EmptyState icon="bag" title={`No customisable shoes for ${label} yet`} compact />
         )}
+        {state.status === "error" && (
+          <div className="mt-6">
+            <CatalogueError message={state.message} onRetry={retry} />
+          </div>
+        )}
+        {data &&
+          (shown.length > 0 ? (
+            <ul className="mt-6 grid grid-cols-2 gap-x-4 gap-y-6 px-gutter">
+              {shown.map((product) => (
+                <li key={product.id}>
+                  <ProductCard product={product} action="customise" />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState icon="bag" title={`No customisable shoes for ${label} yet`} compact />
+          ))}
       </section>
     </div>
   );

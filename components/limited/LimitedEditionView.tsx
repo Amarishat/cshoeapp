@@ -5,19 +5,42 @@ import { ShoeViewer } from "@/components/customizer/ShoeViewer";
 import { SizeChipList } from "@/components/customizer/SizeChipList";
 import { SwipeToAdd } from "@/components/customizer/SwipeToAdd";
 import { u } from "@/components/home/banner";
+import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { HeartButton } from "@/components/product/HeartButton";
 import { cn } from "@/lib/cn";
-import type { LimitedEdition } from "@/lib/data/limitedEdition";
+import { loadLimitedEdition, type LimitedEdition } from "@/lib/data/limitedEditionPage";
 import { formatPrice } from "@/lib/pricing";
 import { useBagStore } from "@/lib/store/bag";
+import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
+
+/** Limited Edition — Figma frame 1:2893 (below the header), from Supabase. */
+export function LimitedEditionView() {
+  const { state, retry } = useCatalogueLoad(loadLimitedEdition);
+
+  if (state.status === "loading") {
+    return (
+      <div aria-busy="true" aria-label="Loading the limited edition" className="animate-pulse px-gutter">
+        <div className="mt-4 aspect-[430/528] rounded-[20px] bg-surface" />
+        <div className="mx-auto mt-[26px] h-5 w-2/3 rounded bg-surface" />
+      </div>
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <div className="mt-8">
+        <CatalogueError title="Couldn’t load this edition." message={state.message} onRetry={retry} />
+      </div>
+    );
+  }
+  return <LimitedEditionContents edition={state.data} />;
+}
 
 /**
- * Limited Edition body — Figma frame 1:2893 (below the header). Everything
- * above the swipe prompt is laid out in the ShoeViewer's Figma coordinates
- * (`u()`), like the Customizer. No size is preselected; the swipe stays
- * disabled until one is chosen. Figma's shoebox drop target is not used.
+ * Everything above the swipe prompt is laid out in the ShoeViewer's Figma
+ * coordinates (`u()`), like the Customizer. No size is preselected; the swipe
+ * stays disabled until one is chosen. Figma's shoebox drop target is not used.
  */
-export function LimitedEditionView({ edition }: { edition: LimitedEdition }) {
+function LimitedEditionContents({ edition }: { edition: LimitedEdition }) {
   const addToBag = useBagStore((s) => s.add);
   const [sizeUK, setSizeUK] = useState<number | null>(null);
   const [colourId, setColourId] = useState(edition.colourways[0]?.id);

@@ -6,10 +6,10 @@ import { ComingSoonBadge } from "@/components/ui/ComingSoonBadge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
-import type { CatalogProduct } from "@/lib/data/catalog";
 import { loadWishlistCatalogue } from "@/lib/data/wishlistCatalogue";
 import { useStoreHydrated } from "@/lib/store/useStoreHydrated";
 import { useWishlistStore } from "@/lib/store/wishlist";
+import type { CatalogProduct } from "@/lib/types";
 import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
 import { WishlistCard } from "./WishlistCard";
 

@@ -1,5 +1,5 @@
-import type { CatalogProduct } from "@/lib/data/catalog";
 import { getProductBySlug, getProducts } from "@/lib/data/supabaseCatalog";
+import type { CatalogProduct } from "@/lib/types";
 
 /**
  * Product info for Wishlist rows, from Supabase, keyed by product id. Same

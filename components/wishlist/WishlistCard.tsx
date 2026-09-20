@@ -6,8 +6,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import { FittedCardImage } from "@/components/product/CardImage";
 import { ComingSoonBadge } from "@/components/ui/ComingSoonBadge";
 import { cn } from "@/lib/cn";
-import type { CatalogProduct } from "@/lib/data/catalog";
 import { formatPrice } from "@/lib/pricing";
+import type { CatalogProduct } from "@/lib/types";
 
 /** Three-dot button with a one-item menu: "Remove". */
 function MoreMenu({ productName, onRemove }: { productName: string; onRemove: () => void }) {
