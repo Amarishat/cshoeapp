@@ -28,6 +28,9 @@ import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
 
 const AUDIENCE_LABEL = { men: "Men", women: "Women", kids: "Kids" } as const;
 
+/** Whose products a search was narrowed to ("No Men’s products match …"). */
+const SEARCH_AUDIENCE_LABEL = { men: "Men’s", women: "Women’s", kids: "Kids" } as const;
+
 // During a search the tabs gain "All" (the default), kept in the URL — the
 // shared Men/Women/Kids preference is left untouched.
 const SEARCH_AUDIENCES: { value: Audience | "all"; label: string }[] = [
@@ -230,7 +233,10 @@ export function ShopView({
               icon="bag"
               title={
                 query
-                  ? `No products match “${query}”`
+                  ? // An audience tab can empty a search that does have matches.
+                    searchAudience
+                    ? `No ${SEARCH_AUDIENCE_LABEL[searchAudience]} products match “${query}”`
+                    : `No products match “${query}”`
                   : narrowed
                     ? "No products match your filters"
                     : `No ${AUDIENCE_LABEL[preferredAudience]} products yet`
