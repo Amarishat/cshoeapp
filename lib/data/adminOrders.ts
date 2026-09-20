@@ -210,3 +210,36 @@ export async function getAdminOrder(orderNumber: string): Promise<AdminOrderDeta
     })),
   };
 }
+
+// ---------------------------------------------------------------------------
+// The one admin write: an order's status
+// ---------------------------------------------------------------------------
+
+/**
+ * Moves an order to `status` and returns the stored value.
+ *
+ * Only the status column is sent, and only that column is granted to
+ * authenticated (009) — the totals and the shipping snapshot can't be touched
+ * from here even by an admin. A non-admin matches no row under the policy, so
+ * PostgREST answers 200 with an empty body rather than an error; that is why
+ * the updated row is selected back and a missing row is treated as a refusal.
+ */
+export async function updateAdminOrderStatus(
+  orderNumber: string,
+  status: OrderStatus,
+): Promise<OrderStatus> {
+  const { data, error } = await getSupabaseClient()
+    .from("orders")
+    .update({ status })
+    .eq("order_number", orderNumber)
+    .select("status")
+    .maybeSingle()
+    .overrideTypes<{ status: OrderStatus } | null, { merge: false }>();
+  if (error) throw new AdminOrderError(`update order ${orderNumber}`, error);
+  if (!data) {
+    throw new AdminOrderError(`update order ${orderNumber}`, {
+      message: "the database refused the change. Only an admin account can set an order's status.",
+    });
+  }
+  return data.status;
+}

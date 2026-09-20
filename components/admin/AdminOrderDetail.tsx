@@ -2,11 +2,16 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
 import { CatalogueError } from "@/components/product/CatalogueStatus";
-import { ComingSoonBadge } from "@/components/ui/ComingSoonBadge";
 import { SelectField } from "@/components/ui/SelectField";
 import { cn } from "@/lib/cn";
-import { getAdminOrder, type AdminOrderDetail as Order, type AdminOrderLine } from "@/lib/data/adminOrders";
+import {
+  getAdminOrder,
+  updateAdminOrderStatus,
+  type AdminOrderDetail as Order,
+  type AdminOrderLine,
+} from "@/lib/data/adminOrders";
 import { formatEventDate } from "@/lib/orders";
 import { formatAmount, formatPrice } from "@/lib/pricing";
 import type { OrderStatus } from "@/lib/types";
@@ -21,6 +26,81 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
 
 /** The four values public.order_status already allows, in the order they happen. */
 const STATUS_ORDER: OrderStatus[] = ["confirmed", "shipped", "out_for_delivery", "delivered"];
+
+/** The label shown in the dropdown, back to the value stored in the column. */
+const STATUS_BY_LABEL = new Map(STATUS_ORDER.map((status) => [STATUS_LABEL[status], status]));
+
+function StatusPill({ status }: { status: OrderStatus }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2.5 py-1 text-caption font-medium",
+        status === "delivered" ? "bg-success/10 text-success" : "bg-surface text-ink/60",
+      )}
+    >
+      {STATUS_LABEL[status]}
+    </span>
+  );
+}
+
+/**
+ * The one thing this screen can change. Only the status column is sent, and
+ * only an admin's update passes the policy (009); anyone else is told so.
+ */
+function StatusControl({
+  orderNumber,
+  status,
+  onChange,
+}: {
+  orderNumber: string;
+  status: OrderStatus;
+  onChange: (status: OrderStatus) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+
+  async function save(next: OrderStatus) {
+    if (saving || next === status) return;
+    setSaving(true);
+    setSaved(false);
+    setError("");
+    try {
+      onChange(await updateAdminOrderStatus(orderNumber, next));
+      setSaved(true);
+    } catch (thrown) {
+      setError(thrown instanceof Error ? thrown.message : String(thrown));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-6 max-w-[420px]">
+      <SelectField
+        label="Status"
+        className="max-w-[280px]"
+        placeholder={STATUS_LABEL[status]}
+        options={STATUS_ORDER.map((value) => STATUS_LABEL[value])}
+        value={STATUS_LABEL[status]}
+        disabled={saving}
+        aria-describedby="status-note"
+        onChange={(event) => {
+          const next = STATUS_BY_LABEL.get(event.target.value);
+          if (next) void save(next);
+        }}
+      />
+      <p role="status" className="mt-2 text-secondary text-ink/60">
+        {saving ? "Saving…" : saved && !error ? "Status updated" : ""}
+      </p>
+      {error && (
+        <p role="alert" className="mt-1 text-secondary text-danger [overflow-wrap:anywhere]">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
 
 const cell = "px-4 py-3 text-left align-middle";
 const head = `${cell} text-secondary font-medium text-ink/60`;
@@ -119,6 +199,8 @@ export function AdminOrderDetail({ orderNumber }: { orderNumber: string }) {
 }
 
 function Detail({ order }: { order: Order }) {
+  const [status, setStatus] = useState<OrderStatus>(order.status);
+
   return (
     <div className="max-w-[900px]">
       <Link href="/admin/orders" className="text-secondary text-ink/60 underline">
@@ -126,33 +208,14 @@ function Detail({ order }: { order: Order }) {
       </Link>
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <h1 className="text-heading font-semibold tabular-nums">{order.orderNumber}</h1>
-        <span
-          className={cn(
-            "inline-flex items-center rounded-full px-2.5 py-1 text-caption font-medium",
-            order.status === "delivered" ? "bg-success/10 text-success" : "bg-surface text-ink/60",
-          )}
-        >
-          {STATUS_LABEL[order.status]}
-        </span>
+        <StatusPill status={status} />
       </div>
       <p className="mt-2 text-secondary text-ink/60">Placed {formatEventDate(order.createdAt)}</p>
 
-      {/* Status is read-only: public.orders is insert-only (place_order), with
-          no update privilege or policy, so nothing here can change it yet. */}
-      <div className="relative mt-6 w-full max-w-[280px]">
-        <SelectField
-          label="Status"
-          placeholder={STATUS_LABEL[order.status]}
-          options={STATUS_ORDER.map((status) => STATUS_LABEL[status])}
-          value={STATUS_LABEL[order.status]}
-          disabled
-          aria-describedby="status-note"
-        />
-        <ComingSoonBadge className="absolute -top-2.5 right-2" />
-      </div>
+      <StatusControl orderNumber={order.orderNumber} status={status} onChange={setStatus} />
       <p id="status-note" className="mt-2 max-w-[420px] text-caption text-ink/50">
-        Orders are created by the database and never changed: there is no update permission on
-        public.orders yet, so the status can’t be edited here.
+        Changing this updates only the order’s status — the items, totals and shipping details
+        stay exactly as they were placed.
       </p>
 
       {/* Shipping */}
