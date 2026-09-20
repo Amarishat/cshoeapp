@@ -2,6 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useMemo, useState } from "react";
+import {
+  adminToolbarButton,
+  AdminSearchField,
+  matchesTerms,
+} from "@/components/admin/AdminSearchField";
 import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { cn } from "@/lib/cn";
 import { loadAdminBrands } from "@/lib/data/adminBrands";
@@ -16,6 +22,17 @@ const head = `${cell} text-secondary font-medium text-ink/60`;
  */
 export function AdminBrandsView() {
   const { state, retry } = useCatalogueLoad(loadAdminBrands);
+  const [search, setSearch] = useState("");
+
+  const brands = state.status === "ready" ? state.data : null;
+  const searching = search.trim() !== "";
+  const shown = useMemo(
+    () =>
+      brands === null
+        ? []
+        : brands.filter((brand) => matchesTerms(`${brand.name} ${brand.id}`, search)),
+    [brands, search],
+  );
 
   return (
     <section aria-labelledby="admin-brands" className="max-w-[720px]">
@@ -23,10 +40,30 @@ export function AdminBrandsView() {
         Brands
       </h1>
       <p className="mt-2 text-secondary text-ink/60">
-        {state.status === "ready"
-          ? `${state.data.length} ${state.data.length === 1 ? "brand" : "brands"} · the id is the slug used in /brands/…`
-          : "From the Supabase catalogue"}
+        {brands === null
+          ? "From the Supabase catalogue"
+          : searching
+            ? `Showing ${shown.length} of ${brands.length} ${brands.length === 1 ? "brand" : "brands"}`
+            : `${brands.length} ${brands.length === 1 ? "brand" : "brands"} · the id is the slug used in /brands/…`}
       </p>
+
+      {brands !== null && brands.length > 0 && (
+        <search className="mt-8 rounded-card border border-border bg-page p-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <AdminSearchField
+              className="min-w-[260px] flex-1"
+              placeholder="Name or slug"
+              value={search}
+              onChange={setSearch}
+            />
+            {searching && (
+              <button type="button" onClick={() => setSearch("")} className={adminToolbarButton}>
+                Clear
+              </button>
+            )}
+          </div>
+        </search>
+      )}
 
       {state.status === "error" && (
         <div className="mt-8">
@@ -50,11 +87,22 @@ export function AdminBrandsView() {
         </div>
       )}
 
-      {state.status === "ready" &&
-        (state.data.length === 0 ? (
+      {brands !== null &&
+        (brands.length === 0 ? (
           <p className="mt-8 rounded-card border border-border bg-page p-10 text-center text-body text-ink/60">
             No brands in the catalogue yet.
           </p>
+        ) : shown.length === 0 ? (
+          <div className="mt-8 rounded-card border border-border bg-page p-10 text-center">
+            <p className="text-body text-ink/60">No brands match this search.</p>
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="mt-5 rounded-[9px] border border-border px-3 py-1.5 text-secondary font-medium hover:bg-surface"
+            >
+              Clear search
+            </button>
+          </div>
         ) : (
           <div className="mt-8 overflow-x-auto rounded-card border border-border bg-page">
             <table className="w-full border-collapse text-label">
@@ -79,7 +127,7 @@ export function AdminBrandsView() {
                 </tr>
               </thead>
               <tbody>
-                {state.data.map((brand) => (
+                {shown.map((brand) => (
                   <tr key={brand.id} className="border-t border-border">
                     <td className={cell}>
                       <span className="flex size-[52px] items-center justify-center rounded-[9px] bg-surface">

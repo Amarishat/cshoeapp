@@ -1,6 +1,12 @@
 "use client";
 
 import { useId, useMemo } from "react";
+import {
+  adminField,
+  adminToolbarButton,
+  AdminSearchField,
+  matchesTerms,
+} from "@/components/admin/AdminSearchField";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 import type { CatalogueProduct } from "@/lib/data/supabaseCatalog";
@@ -41,10 +47,7 @@ export function filtersActive(filters: ProductFilters): boolean {
 
 /** Every term typed has to appear somewhere in the product's name, slug or brand. */
 function matchesSearch(product: CatalogueProduct, search: string): boolean {
-  const terms = search.toLowerCase().split(/\s+/).filter(Boolean);
-  if (terms.length === 0) return true;
-  const haystack = `${product.name} ${product.slug} ${product.brandName}`.toLowerCase();
-  return terms.every((term) => haystack.includes(term));
+  return matchesTerms(`${product.name} ${product.slug} ${product.brandName}`, search);
 }
 
 /** The filters applied together: a product has to pass all of them. */
@@ -61,10 +64,6 @@ export function applyProductFilters(
       (filters.productPage === "all" || product.hasProductPage === (filters.productPage === "live")),
   );
 }
-
-const field =
-  "h-9 w-full rounded-[9px] border border-border bg-page px-3 text-secondary text-ink " +
-  "focus:border-ink focus:outline-none";
 
 /** A labelled dropdown sized for the toolbar, not the customer forms. */
 function Select<T extends string>({
@@ -91,7 +90,7 @@ function Select<T extends string>({
           id={id}
           value={value}
           onChange={(event) => onChange(event.target.value as T)}
-          className={cn(field, "appearance-none truncate pr-9")}
+          className={cn(adminField, "appearance-none truncate pr-9")}
         >
           {options.map((option) => (
             <option key={option.value} value={option.value}>
@@ -139,7 +138,6 @@ export function AdminProductFilters({
   onChange: (filters: ProductFilters) => void;
   onClear: () => void;
 }) {
-  const searchId = useId();
   const brands = useMemo(
     () => [...new Set(products.map((product) => product.brandName))].sort((a, b) => a.localeCompare(b)),
     [products],
@@ -151,19 +149,12 @@ export function AdminProductFilters({
   return (
     <search className="mt-8 rounded-card border border-border bg-page p-4">
       <div className="flex flex-wrap items-end gap-4">
-        <div className="flex min-w-[260px] flex-1 flex-col gap-1.5">
-          <label htmlFor={searchId} className="text-caption text-ink/50">
-            Search
-          </label>
-          <input
-            id={searchId}
-            type="search"
-            value={filters.search}
-            placeholder="Name, slug or brand"
-            onChange={(event) => set("search", event.target.value)}
-            className={cn(field, "placeholder:text-ink/40")}
-          />
-        </div>
+        <AdminSearchField
+          className="min-w-[260px] flex-1"
+          placeholder="Name, slug or brand"
+          value={filters.search}
+          onChange={(value) => set("search", value)}
+        />
 
         <Select
           label="Brand"
@@ -201,7 +192,7 @@ export function AdminProductFilters({
           <button
             type="button"
             onClick={onClear}
-            className="h-9 rounded-[9px] border border-border px-3 text-secondary font-medium hover:bg-surface"
+            className={adminToolbarButton}
           >
             Clear
           </button>
