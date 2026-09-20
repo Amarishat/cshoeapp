@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { cn } from "@/lib/cn";
 import { useWishlistStore } from "@/lib/store/wishlist";
 
@@ -29,14 +30,22 @@ export function HeartButton({
 }) {
   const saved = useWishlistStore((s) => s.productIds.includes(productId));
   const toggle = useWishlistStore((s) => s.toggle);
+  // One change at a time: the heart only fills once Supabase has saved it.
+  const [saving, setSaving] = useState(false);
   const heartFill = saved ? "black" : "white";
+
+  function onToggle() {
+    if (saving) return;
+    setSaving(true);
+    void toggle(productId).finally(() => setSaving(false));
+  }
 
   return (
     <button
       type="button"
       aria-pressed={saved}
       aria-label={saved ? `Remove ${productName} from wishlist` : `Add ${productName} to wishlist`}
-      onClick={() => toggle(productId)}
+      onClick={onToggle}
       className={cn(variant === "card" ? "h-[41px] w-[43px]" : "size-[39px]", className)}
     >
       {variant === "card" ? (
