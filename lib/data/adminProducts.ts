@@ -1,5 +1,5 @@
 import { getSupabaseClient } from "@/lib/supabase/client";
-import type { Audience } from "@/lib/types";
+import type { Audience, GalleryImage, Rect } from "@/lib/types";
 
 /*
  * Admin edits to public.products. Reads and writes go through the same
@@ -105,4 +105,48 @@ export async function updateAdminProduct(id: string, edit: AdminProductEdit): Pr
     });
   }
   return toProduct(data);
+}
+
+// ---------------------------------------------------------------------------
+// Product images (read-only for now)
+// ---------------------------------------------------------------------------
+
+/** One row of public.product_images, as the admin lists it. */
+export interface AdminProductImage {
+  id: string;
+  src: string;
+  alt: string;
+  kind: GalleryImage["kind"];
+  /** Placement inside the gallery tile, when the image has one. */
+  box: Rect | null;
+  sortOrder: number;
+}
+
+interface AdminProductImageRow {
+  id: string;
+  src: string;
+  alt: string;
+  kind: GalleryImage["kind"];
+  box: Rect | null;
+  sort_order: number;
+}
+
+/** A product's gallery rows, in gallery order (sort_order 0 is the first slide). */
+export async function listAdminProductImages(productId: string): Promise<AdminProductImage[]> {
+  const { data, error } = await getSupabaseClient()
+    .from("product_images")
+    .select("id, src, alt, kind, box, sort_order")
+    .eq("product_id", productId)
+    .order("sort_order")
+    .overrideTypes<AdminProductImageRow[], { merge: false }>();
+  if (error) throw new AdminProductError(`load the images for "${productId}"`, error);
+
+  return data.map((row) => ({
+    id: row.id,
+    src: row.src,
+    alt: row.alt,
+    kind: row.kind,
+    box: row.box,
+    sortOrder: row.sort_order,
+  }));
 }
