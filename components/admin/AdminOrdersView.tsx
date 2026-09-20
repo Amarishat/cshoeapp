@@ -1,6 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo, useState } from "react";
+import {
+  adminToolbarButton,
+  AdminSearchField,
+  AdminSelectField,
+  matchesTerms,
+} from "@/components/admin/AdminSearchField";
 import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { cn } from "@/lib/cn";
 import { loadAdminOrders } from "@/lib/data/adminOrders";
@@ -20,6 +27,17 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
   delivered: "Delivered",
 };
 
+/** "All", then the four real statuses. Nothing here can change an order's status. */
+const STATUS_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "confirmed", label: "Confirmed" },
+  { value: "shipped", label: "Shipped" },
+  { value: "out_for_delivery", label: "Out for delivery" },
+  { value: "delivered", label: "Delivered" },
+] as const;
+
+type StatusFilter = (typeof STATUS_OPTIONS)[number]["value"];
+
 /**
  * Orders — read-only list of public.orders, newest first. Nothing here
  * creates, edits or cancels an order; orders are written only by
@@ -27,6 +45,27 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
  */
 export function AdminOrdersView() {
   const { state, retry } = useCatalogueLoad(loadAdminOrders);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<StatusFilter>("all");
+
+  const orders = state.status === "ready" ? state.data : null;
+  const active = search.trim() !== "" || status !== "all";
+  const shown = useMemo(
+    () =>
+      orders === null
+        ? []
+        : orders.filter(
+            (order) =>
+              matchesTerms(`${order.orderNumber} ${order.shipName}`, search) &&
+              (status === "all" || order.status === status),
+          ),
+    [orders, search, status],
+  );
+
+  function clear() {
+    setSearch("");
+    setStatus("all");
+  }
 
   return (
     <section aria-labelledby="admin-orders" className="max-w-[900px]">
@@ -34,10 +73,37 @@ export function AdminOrdersView() {
         Orders
       </h1>
       <p className="mt-2 text-secondary text-ink/60">
-        {state.status === "ready"
-          ? `${state.data.length} ${state.data.length === 1 ? "order" : "orders"} · newest first`
-          : "From public.orders"}
+        {orders === null
+          ? "From public.orders"
+          : active
+            ? `Showing ${shown.length} of ${orders.length} ${orders.length === 1 ? "order" : "orders"}`
+            : `${orders.length} ${orders.length === 1 ? "order" : "orders"} · newest first`}
       </p>
+
+      {orders !== null && orders.length > 0 && (
+        <search className="mt-8 rounded-card border border-border bg-page p-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <AdminSearchField
+              className="min-w-[260px] flex-1"
+              placeholder="Order number or ship-to name"
+              value={search}
+              onChange={setSearch}
+            />
+            <AdminSelectField
+              label="Status"
+              className="w-[170px]"
+              value={status}
+              onChange={setStatus}
+              options={[...STATUS_OPTIONS]}
+            />
+            {active && (
+              <button type="button" onClick={clear} className={adminToolbarButton}>
+                Clear
+              </button>
+            )}
+          </div>
+        </search>
+      )}
 
       {state.status === "error" && (
         <div className="mt-8">
@@ -62,11 +128,22 @@ export function AdminOrdersView() {
         </div>
       )}
 
-      {state.status === "ready" &&
-        (state.data.length === 0 ? (
+      {orders !== null &&
+        (orders.length === 0 ? (
           <p className="mt-8 rounded-card border border-border bg-page p-10 text-center text-body text-ink/60">
             No orders are visible to this account.
           </p>
+        ) : shown.length === 0 ? (
+          <div className="mt-8 rounded-card border border-border bg-page p-10 text-center">
+            <p className="text-body text-ink/60">No orders match this search.</p>
+            <button
+              type="button"
+              onClick={clear}
+              className="mt-5 rounded-[9px] border border-border px-3 py-1.5 text-secondary font-medium hover:bg-surface"
+            >
+              Clear search and filters
+            </button>
+          </div>
         ) : (
           <div className="mt-8 overflow-x-auto rounded-card border border-border bg-page">
             <table className="w-full border-collapse text-label">
@@ -97,7 +174,7 @@ export function AdminOrdersView() {
                 </tr>
               </thead>
               <tbody>
-                {state.data.map((order) => (
+                {shown.map((order) => (
                   <tr key={order.orderNumber} className="border-t border-border">
                     <td className={cn(cell, "font-medium tabular-nums")}>{order.orderNumber}</td>
                     <td className={cn(cell, "whitespace-nowrap")}>{formatEventDate(order.createdAt)}</td>

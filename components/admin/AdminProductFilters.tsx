@@ -1,14 +1,12 @@
 "use client";
 
-import { useId, useMemo } from "react";
+import { useMemo } from "react";
 import {
-  adminField,
   adminToolbarButton,
   AdminSearchField,
+  AdminSelectField,
   matchesTerms,
 } from "@/components/admin/AdminSearchField";
-import { Icon } from "@/components/ui/Icon";
-import { cn } from "@/lib/cn";
 import type { CatalogueProduct } from "@/lib/data/supabaseCatalog";
 
 /*
@@ -65,48 +63,6 @@ export function applyProductFilters(
   );
 }
 
-/** A labelled dropdown sized for the toolbar, not the customer forms. */
-function Select<T extends string>({
-  label,
-  value,
-  options,
-  onChange,
-  className,
-}: {
-  label: string;
-  value: T;
-  options: { value: T; label: string }[];
-  onChange: (value: T) => void;
-  className?: string;
-}) {
-  const id = useId();
-  return (
-    <div className={cn("flex flex-col gap-1.5", className)}>
-      <label htmlFor={id} className="text-caption text-ink/50">
-        {label}
-      </label>
-      <div className="relative">
-        <select
-          id={id}
-          value={value}
-          onChange={(event) => onChange(event.target.value as T)}
-          className={cn(adminField, "appearance-none truncate pr-9")}
-        >
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <Icon
-          name="chevronDown"
-          className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 opacity-40"
-        />
-      </div>
-    </div>
-  );
-}
-
 const AUDIENCE_OPTIONS = [
   { value: "all", label: "All" },
   { value: "men", label: "Men" },
@@ -156,7 +112,7 @@ export function AdminProductFilters({
           onChange={(value) => set("search", value)}
         />
 
-        <Select
+        <AdminSelectField
           label="Brand"
           className="w-[160px]"
           value={filters.brand}
@@ -166,21 +122,21 @@ export function AdminProductFilters({
             ...brands.map((brand) => ({ value: brand, label: brand })),
           ]}
         />
-        <Select
+        <AdminSelectField
           label="Audience"
           className="w-[130px]"
           value={filters.audience}
           onChange={(value) => set("audience", value)}
           options={[...AUDIENCE_OPTIONS]}
         />
-        <Select
+        <AdminSelectField
           label="Customiser"
           className="w-[170px]"
           value={filters.customiser}
           onChange={(value) => set("customiser", value)}
           options={[...CUSTOMISER_OPTIONS]}
         />
-        <Select
+        <AdminSelectField
           label="Product page"
           className="w-[130px]"
           value={filters.productPage}
