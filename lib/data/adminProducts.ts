@@ -189,3 +189,49 @@ export async function listAdminProductSizes(productId: string): Promise<AdminPro
     sortOrder: row.sort_order,
   }));
 }
+
+// ---------------------------------------------------------------------------
+// Product reviews (read-only for now)
+// ---------------------------------------------------------------------------
+
+/**
+ * One row of public.product_reviews. The table also has a user_id (the
+ * account that wrote the review); it is deliberately not selected or shown —
+ * the storefront uses the display name for the same reason. There is no
+ * status or moderation column.
+ */
+export interface AdminProductReview {
+  id: string;
+  author: string;
+  rating: number;
+  text: string;
+  createdAt: string;
+}
+
+interface AdminProductReviewRow {
+  id: string;
+  author_name: string;
+  rating: number;
+  body: string;
+  created_at: string;
+}
+
+/** A product's reviews, oldest first — the order the product page shows them in. */
+export async function listAdminProductReviews(productId: string): Promise<AdminProductReview[]> {
+  const { data, error } = await getSupabaseClient()
+    .from("product_reviews")
+    .select("id, author_name, rating, body, created_at")
+    .eq("product_id", productId)
+    .order("created_at")
+    .order("id")
+    .overrideTypes<AdminProductReviewRow[], { merge: false }>();
+  if (error) throw new AdminProductError(`load the reviews for "${productId}"`, error);
+
+  return data.map((row) => ({
+    id: row.id,
+    author: row.author_name,
+    rating: row.rating,
+    text: row.body,
+    createdAt: row.created_at,
+  }));
+}
