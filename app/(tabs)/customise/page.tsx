@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import { CustomiseHubView } from "@/components/customise/CustomiseHubView";
-import { AppHeader } from "@/components/layout/AppHeader";
 import { BagButton } from "@/components/layout/BagButton";
-import { ComingSoonBadge } from "@/components/ui/ComingSoonBadge";
-import { Icon } from "@/components/ui/Icon";
+import { SearchableHeader } from "@/components/layout/SearchableHeader";
 
 export const metadata: Metadata = { title: "Customise" };
 
@@ -14,20 +12,7 @@ export const metadata: Metadata = { title: "Customise" };
 export default function CustomiseHubPage() {
   return (
     <>
-      <AppHeader
-        title="Customise"
-        actions={
-          <>
-            <span className="flex items-center gap-2">
-              <ComingSoonBadge />
-              <span role="img" aria-label="Search (coming soon)" className="flex">
-                <Icon name="search" className="size-[30px] text-ink/40" />
-              </span>
-            </span>
-            <BagButton />
-          </>
-        }
-      />
+      <SearchableHeader leading="none" title="Customise" actions={<BagButton />} />
       <CustomiseHubView />
     </>
   );

@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BrandPageView } from "@/components/brands/BrandPageView";
-import { AppHeader } from "@/components/layout/AppHeader";
 import { BagButton } from "@/components/layout/BagButton";
-import { ComingSoonBadge } from "@/components/ui/ComingSoonBadge";
-import { Icon } from "@/components/ui/Icon";
+import { SearchableHeader } from "@/components/layout/SearchableHeader";
 import { BRAND_PAGES } from "@/lib/data/brandCatalogue";
 
 // Only the brand pages that exist; any other slug is a 404.
@@ -33,22 +31,7 @@ export default async function BrandPage({ params }: PageProps<"/brands/[brand]">
 
   return (
     <div className="pb-10">
-      <AppHeader
-        leading="back"
-        backHref="/"
-        title="Brands"
-        actions={
-          <>
-            <span className="flex items-center gap-2">
-              <ComingSoonBadge />
-              <span role="img" aria-label="Search (coming soon)" className="flex">
-                <Icon name="search" className="size-[30px] text-ink/40" />
-              </span>
-            </span>
-            <BagButton />
-          </>
-        }
-      />
+      <SearchableHeader backHref="/" title="Brands" actions={<BagButton />} />
       <BrandPageView brandId={brand.id} brandName={brand.name} />
     </div>
   );

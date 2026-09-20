@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import { AppHeader } from "@/components/layout/AppHeader";
 import { BagButton } from "@/components/layout/BagButton";
+import { SearchableHeader } from "@/components/layout/SearchableHeader";
 import { ShopView } from "@/components/shop/ShopView";
-import { ComingSoonBadge } from "@/components/ui/ComingSoonBadge";
-import { Icon } from "@/components/ui/Icon";
 import { parseAudience } from "@/lib/shopFilters";
 
 export const metadata: Metadata = { title: "Shop" };
@@ -22,22 +20,7 @@ export default async function ShopPage({ searchParams }: PageProps<"/shop">) {
 
   return (
     <>
-      <AppHeader
-        leading="back"
-        backHref="/"
-        title="Shop"
-        actions={
-          <>
-            <span className="flex items-center gap-2">
-              <ComingSoonBadge />
-              <span role="img" aria-label="Search (coming soon)" className="flex">
-                <Icon name="search" className="size-[30px] text-ink/40" />
-              </span>
-            </span>
-            <BagButton />
-          </>
-        }
-      />
+      <SearchableHeader backHref="/" title="Shop" query={query} actions={<BagButton />} />
       <ShopView query={query} searchAudience={searchAudience} />
     </>
   );
