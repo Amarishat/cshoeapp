@@ -3,6 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { CatalogueError } from "@/components/product/CatalogueStatus";
+import { ComingSoonBadge } from "@/components/ui/ComingSoonBadge";
+import { SelectField } from "@/components/ui/SelectField";
 import { cn } from "@/lib/cn";
 import { getAdminOrder, type AdminOrderDetail as Order, type AdminOrderLine } from "@/lib/data/adminOrders";
 import { formatEventDate } from "@/lib/orders";
@@ -16,6 +18,9 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
   out_for_delivery: "Out for delivery",
   delivered: "Delivered",
 };
+
+/** The four values public.order_status already allows, in the order they happen. */
+const STATUS_ORDER: OrderStatus[] = ["confirmed", "shipped", "out_for_delivery", "delivered"];
 
 const cell = "px-4 py-3 text-left align-middle";
 const head = `${cell} text-secondary font-medium text-ink/60`;
@@ -131,6 +136,24 @@ function Detail({ order }: { order: Order }) {
         </span>
       </div>
       <p className="mt-2 text-secondary text-ink/60">Placed {formatEventDate(order.createdAt)}</p>
+
+      {/* Status is read-only: public.orders is insert-only (place_order), with
+          no update privilege or policy, so nothing here can change it yet. */}
+      <div className="relative mt-6 w-full max-w-[280px]">
+        <SelectField
+          label="Status"
+          placeholder={STATUS_LABEL[order.status]}
+          options={STATUS_ORDER.map((status) => STATUS_LABEL[status])}
+          value={STATUS_LABEL[order.status]}
+          disabled
+          aria-describedby="status-note"
+        />
+        <ComingSoonBadge className="absolute -top-2.5 right-2" />
+      </div>
+      <p id="status-note" className="mt-2 max-w-[420px] text-caption text-ink/50">
+        Orders are created by the database and never changed: there is no update permission on
+        public.orders yet, so the status can’t be edited here.
+      </p>
 
       {/* Shipping */}
       <section aria-labelledby="shipping" className="mt-8 rounded-card border border-border bg-page p-6">
