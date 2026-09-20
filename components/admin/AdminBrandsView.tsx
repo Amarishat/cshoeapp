@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { cn } from "@/lib/cn";
 import { loadAdminBrands } from "@/lib/data/adminBrands";
@@ -72,6 +73,9 @@ export function AdminBrandsView() {
                   <th scope="col" className={cn(head, "text-right")}>
                     Products
                   </th>
+                  <th scope="col" className={head}>
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -97,6 +101,15 @@ export function AdminBrandsView() {
                       ) : (
                         brand.productCount
                       )}
+                    </td>
+                    <td className={cn(cell, "text-right")}>
+                      <Link
+                        href={`/admin/brands/${brand.id}`}
+                        aria-label={`Edit ${brand.name}`}
+                        className="rounded-[9px] border border-border px-3 py-1.5 text-secondary font-medium hover:bg-surface"
+                      >
+                        Edit
+                      </Link>
                     </td>
                   </tr>
                 ))}
