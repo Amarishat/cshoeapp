@@ -3,13 +3,19 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { SizeChartView } from "@/components/product/SizeChartView";
-import { PRODUCT_PAGES } from "@/lib/data/productPages";
+import { getProductPageMeta, listProductPageSlugs } from "@/lib/data/productPages";
 
-export const dynamicParams = false;
+// Same route admission as the product page: products with a page are
+// prerendered, one enabled later is rendered on demand, anything else 404s.
+export const dynamicParams = true;
 
-// Same routes as the product page (V1: Sabrina 2 EP); any other slug is a 404.
 export async function generateStaticParams() {
-  return PRODUCT_PAGES.map((page) => ({ slug: page.slug }));
+  try {
+    const slugs = await listProductPageSlugs();
+    return slugs.map((slug) => ({ slug }));
+  } catch {
+    return [];
+  }
 }
 
 export const metadata: Metadata = { title: "Size chart" };
@@ -30,7 +36,9 @@ const steps = [
  */
 export default async function SizeChartPage({ params }: PageProps<"/products/[slug]/size-chart">) {
   const { slug } = await params;
-  if (!PRODUCT_PAGES.some((page) => page.slug === slug)) notFound();
+  // A Supabase failure is left to SizeChartView, which shows it with a retry.
+  const page = await getProductPageMeta(slug).catch(() => "unknown" as const);
+  if (page === null) notFound();
 
   return (
     <div className="pb-10">

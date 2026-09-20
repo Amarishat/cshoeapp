@@ -1,5 +1,6 @@
 "use client";
 
+import { notFound } from "next/navigation";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { BagButton } from "@/components/layout/BagButton";
 import { CatalogueError } from "@/components/product/CatalogueStatus";
@@ -10,27 +11,39 @@ import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
 
 /**
  * Product screen (Figma 1:2478) with its data loaded from Supabase. The
- * header shows the route's names until the product has loaded.
+ * route passes the product's names (from the same database) so the header
+ * has a title while the rest loads; without them the header fills in once
+ * the product has loaded. A slug whose product has no page is a 404.
  */
-export function ProductPageView({ slug, name, shortName }: { slug: string; name: string; shortName: string }) {
+export function ProductPageView({
+  slug,
+  name,
+  shortName,
+}: {
+  slug: string;
+  name?: string;
+  shortName?: string;
+}) {
   const { state, retry } = useCatalogueLoad(loadProductPage, slug);
-  const product = state.status === "ready" ? state.data.product : null;
+  const page = state.status === "ready" ? state.data : null;
+  const product = page?.product ?? null;
+
+  // The product lost its page (or never had one) since the route admitted it.
+  if (state.status === "ready" && !page) notFound();
 
   return (
     <>
       <AppHeader
         leading="back"
-        title={product?.shortName ?? shortName}
+        title={product?.shortName ?? shortName ?? ""}
         actions={
           <>
-            <ShareButton title={product?.name ?? name} />
+            <ShareButton title={product?.name ?? name ?? "this product"} />
             <BagButton />
           </>
         }
       />
-      {state.status === "ready" && (
-        <ProductView product={state.data.product} customisable={state.data.customisable} />
-      )}
+      {page && <ProductView product={page.product} customisable={page.customisable} />}
       {state.status === "loading" && (
         <div aria-busy="true" aria-label="Loading product" className="mt-8 animate-pulse px-gutter">
           <div className="aspect-[390/395] bg-surface" />

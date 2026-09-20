@@ -151,25 +151,27 @@ export function ProductView({
         <TryOnButton />
       </div>
 
-      {/* Thumbnails */}
-      <ul
-        aria-label="More images"
-        className="no-scrollbar mt-6 flex snap-x snap-mandatory scroll-px-gutter gap-2 overflow-x-auto px-gutter"
-      >
-        {thumbnails.map((image, i) => (
-          <li key={image.src} className="shrink-0 snap-start">
-            <button
-              type="button"
-              aria-label={`Show ${image.alt}`}
-              aria-current={imageIndex === i + 1 ? "true" : undefined}
-              onClick={() => setImageIndex(i + 1)}
-              className="relative block h-[163px] w-[158px] bg-surface"
-            >
-              <GallerySlideImage image={image} sizes="160px" />
-            </button>
-          </li>
-        ))}
-      </ul>
+      {/* Thumbnails — left out entirely when the gallery is a single image. */}
+      {thumbnails.length > 0 && (
+        <ul
+          aria-label="More images"
+          className="no-scrollbar mt-6 flex snap-x snap-mandatory scroll-px-gutter gap-2 overflow-x-auto px-gutter"
+        >
+          {thumbnails.map((image, i) => (
+            <li key={image.src} className="shrink-0 snap-start">
+              <button
+                type="button"
+                aria-label={`Show ${image.alt}`}
+                aria-current={imageIndex === i + 1 ? "true" : undefined}
+                onClick={() => setImageIndex(i + 1)}
+                className="relative block h-[163px] w-[158px] bg-surface"
+              >
+                <GallerySlideImage image={image} sizes="160px" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {/* Name, price, rating, quantity */}
       <div className="mt-10 flex justify-between gap-4 px-gutter">
