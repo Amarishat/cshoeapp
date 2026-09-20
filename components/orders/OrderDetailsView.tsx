@@ -8,10 +8,15 @@ import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { ButtonLink } from "@/components/ui/Button";
 import { ComingSoonBadge } from "@/components/ui/ComingSoonBadge";
 import { Icon } from "@/components/ui/Icon";
-import { MOCK_ARRIVAL_LABEL, MOCK_DELIVERY_DAY } from "@/lib/data/delivery";
 import { upiApps } from "@/lib/data/paymentMethods";
 import { getOrderByNumber } from "@/lib/data/userOrders";
-import { orderDetailProgress, orderStatusView, orderSummaryText } from "@/lib/orders";
+import {
+  arrivingByLabel,
+  formatDeliveryDay,
+  orderDetailProgress,
+  orderStatusView,
+  orderSummaryText,
+} from "@/lib/orders";
 import { formatAmount, formatPrice } from "@/lib/pricing";
 import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
 import { useShareFeedback } from "@/lib/useShareFeedback";
@@ -180,7 +185,7 @@ function Details({ order }: { order: Order }) {
         {/* Status, arrival and every line of this order */}
         <div className="px-gutter pt-6 pb-[21px]">
           <p className="text-[17px] font-medium text-[#fba627]">{status.label}</p>
-          {status.showArrival && <p className="mt-1 text-[17px]">{MOCK_ARRIVAL_LABEL}</p>}
+          {status.showArrival && <p className="mt-1 text-[17px]">{arrivingByLabel(order.createdAt)}</p>}
           <ul aria-label="Items" className="mt-4 divide-y divide-[#d9d9d9]">
             {order.lines.map((line) => (
               <LineRow key={line.bagItemId} line={line} />
@@ -191,7 +196,7 @@ function Details({ order }: { order: Order }) {
 
       {/* Tracker */}
       <section aria-label="Delivery progress" className="border-t border-[#d9d9d9] px-gutter pt-6">
-        <OrderTimeline steps={orderDetailProgress(order, MOCK_DELIVERY_DAY)} />
+        <OrderTimeline steps={orderDetailProgress(order, formatDeliveryDay(order.createdAt))} />
         <Link
           href={`/orders/${encodeURIComponent(order.id)}/track`}
           className="mt-[30px] flex w-fit items-center gap-2 text-[17px] font-medium"

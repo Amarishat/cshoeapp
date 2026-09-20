@@ -5,8 +5,8 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 /**
  * "19 Sep 2026" — the one display format for real order/event dates
- * (placed, confirmed, notifications, shared text). Display only; the fixed
- * delivery estimate in lib/data/delivery.ts keeps its own format.
+ * (placed, confirmed, notifications, shared text). Display only; the expected
+ * delivery date below keeps Figma's own format ("Oct 11, Mon").
  */
 export function formatEventDate(iso: string): string {
   const d = new Date(iso);
@@ -16,6 +16,46 @@ export function formatEventDate(iso: string): string {
 /** My Orders tracker date, e.g. "19 Sep 2026". */
 export function formatOrderDate(iso: string): string {
   return formatEventDate(iso);
+}
+
+// ——— Expected delivery (Figma 1:3495 shows it as "Oct 11, Mon") ———
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** Days from the order date to the expected delivery — V1's one estimate. */
+export const DELIVERY_DAYS = 21;
+
+/**
+ * When an order is expected: DELIVERY_DAYS after it was placed, or after
+ * today when there is no order yet (Order Summary, before checkout). The days
+ * are added to the local calendar date rather than to a timestamp, so the
+ * date shown can't slip by one around midnight or a daylight-saving change.
+ */
+export function expectedDeliveryDate(orderedAt?: string): Date {
+  const placed = orderedAt ? new Date(orderedAt) : new Date();
+  return new Date(placed.getFullYear(), placed.getMonth(), placed.getDate() + DELIVERY_DAYS);
+}
+
+/** "Oct 11, Mon" — Payment Success and Track Order. */
+export function formatDeliveryDate(orderedAt?: string): string {
+  const d = expectedDeliveryDate(orderedAt);
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${WEEKDAYS[d.getDay()]}`;
+}
+
+/** "Oct 11" — Order Details tracker ("Expected Delivery, Oct 11"). */
+export function formatDeliveryDay(orderedAt?: string): string {
+  const d = expectedDeliveryDate(orderedAt);
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}`;
+}
+
+/** Order Summary item row. */
+export function deliveryByLabel(orderedAt?: string): string {
+  return `Delivery by ${formatDeliveryDate(orderedAt)}`;
+}
+
+/** My Orders card and Order Details. */
+export function arrivingByLabel(orderedAt?: string): string {
+  return `Arriving by ${formatDeliveryDate(orderedAt)}`;
 }
 
 export interface ProgressStep {

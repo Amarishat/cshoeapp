@@ -1,8 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ComingSoonBadge } from "@/components/ui/ComingSoonBadge";
-import { MOCK_ARRIVAL_LABEL } from "@/lib/data/delivery";
-import { orderProgress } from "@/lib/orders";
+import { arrivingByLabel, orderProgress } from "@/lib/orders";
 import type { Order } from "@/lib/types";
 import { OrderProgress } from "./OrderProgress";
 
@@ -40,7 +39,7 @@ export function OrderCard({ order }: { order: Order }) {
             </p>
           )}
           <p className="mt-[3px] text-[15px] font-medium text-ink/90">Size : {size}</p>
-          <p className="mt-[3px] text-secondary font-medium text-success">{MOCK_ARRIVAL_LABEL}</p>
+          <p className="mt-[3px] text-secondary font-medium text-success">{arrivingByLabel(order.createdAt)}</p>
         </div>
       </div>
 

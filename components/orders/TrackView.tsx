@@ -2,9 +2,8 @@
 
 import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { ButtonLink } from "@/components/ui/Button";
-import { MOCK_DELIVERY_DATE } from "@/lib/data/delivery";
 import { getOrderByNumber } from "@/lib/data/userOrders";
-import { trackTimeline } from "@/lib/orders";
+import { formatDeliveryDate, trackTimeline } from "@/lib/orders";
 import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
 import { TrackTimeline } from "./TrackTimeline";
 
@@ -52,7 +51,7 @@ export function TrackView({ orderId }: { orderId: string }) {
   return (
     <div className="mt-[30px] px-gutter pb-10">
       <p className="sr-only">Order {order.id}</p>
-      <TrackTimeline steps={trackTimeline(order, MOCK_DELIVERY_DATE)} />
+      <TrackTimeline steps={trackTimeline(order, formatDeliveryDate(order.createdAt))} />
     </div>
   );
 }

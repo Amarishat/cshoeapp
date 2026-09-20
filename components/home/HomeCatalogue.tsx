@@ -7,7 +7,10 @@ import { ProductRail } from "@/components/home/ProductRail";
 import { SectionHeader } from "@/components/home/SectionHeader";
 import { CardPlaceholder, CatalogueError } from "@/components/product/CatalogueStatus";
 import { ProductCard } from "@/components/product/ProductCard";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { getBrands, getProducts, type CatalogueProduct } from "@/lib/data/supabaseCatalog";
+import { usePreferencesStore } from "@/lib/store/preferences";
+import { useStoreHydrated } from "@/lib/store/useStoreHydrated";
 import type { Brand } from "@/lib/types";
 import { useCatalogueLoad, type CatalogueLoadState } from "@/lib/useCatalogueLoad";
 
@@ -15,7 +18,9 @@ import { useCatalogueLoad, type CatalogueLoadState } from "@/lib/useCatalogueLoa
  * Home catalogue sections (brands and the three product sections), read from
  * Supabase in the browser. The database has no display-order column, so the
  * Home sections and their order are fixed here by product id — the same
- * lists and order as before (Figma 1:1642).
+ * lists and order as before (Figma 1:1642). Each section then shows only the
+ * products for the chosen Men/Women/Kids tab; a section with none for that
+ * audience is left out, and when no section has any, HomeNoProducts says so.
  */
 const HOME_SECTIONS = {
   topPicks: ["nike-lite", "nike-air-force", "adidas-nmd", "puma-shuffle"],
@@ -56,6 +61,32 @@ function useHomeCatalogue() {
   const value = useContext(CatalogueContext);
   if (!value) throw new Error("Home catalogue sections must be inside <HomeCatalogueProvider>.");
   return value;
+}
+
+const AUDIENCE_LABEL = { men: "Men", women: "Women", kids: "Kids" } as const;
+
+/**
+ * The Home sections for the chosen Men/Women/Kids tab, in Home order.
+ * `sections` is null until both the catalogue and the saved choice have
+ * loaded, so the rails don't flash the wrong audience's products.
+ */
+function useAudienceSections() {
+  const { state } = useHomeCatalogue();
+  const hydrated = useStoreHydrated(usePreferencesStore.persist);
+  const audience = usePreferencesStore((s) => s.audience);
+
+  if (state.status !== "ready" || !hydrated) return { state, sections: null, audience };
+  const forAudience = (products: CatalogueProduct[]) => products.filter((p) => p.audience === audience);
+  const { topPicks, trending, trendingCustomisation } = state.data.sections;
+  return {
+    state,
+    sections: {
+      topPicks: forAudience(topPicks),
+      trending: forAudience(trending),
+      trendingCustomisation: forAudience(trendingCustomisation),
+    },
+    audience,
+  };
 }
 
 /** Loads brands and products once for all Home catalogue sections. */
@@ -105,16 +136,18 @@ export function HomeBrandsSection() {
 }
 
 export function HomeTopPicksSection() {
-  const { state } = useHomeCatalogue();
+  const { state, sections } = useAudienceSections();
   if (state.status === "error") return null;
+  // No top picks for the chosen audience: the section is left out.
+  if (sections && sections.topPicks.length === 0) return null;
 
   return (
-    <section aria-labelledby="home-top-picks" aria-busy={state.status === "loading"} className="mt-10">
+    <section aria-labelledby="home-top-picks" aria-busy={!sections} className="mt-10">
       <SectionHeader id="home-top-picks" title="Top Picks for You" viewAllHref="/shop" />
       <div className="mt-6">
-        {state.status === "ready" ? (
+        {sections ? (
           <ProductRail label="Top picks for you" gap={13} topInset={14}>
-            {state.data.sections.topPicks.map((product) => (
+            {sections.topPicks.map((product) => (
               <ProductCard
                 key={product.id}
                 product={product}
@@ -134,15 +167,16 @@ export function HomeTopPicksSection() {
 }
 
 export function HomeTrendingSection() {
-  const { state } = useHomeCatalogue();
+  const { state, sections } = useAudienceSections();
   if (state.status === "error") return null;
+  if (sections && sections.trending.length === 0) return null;
 
   return (
-    <section aria-labelledby="home-trending" aria-busy={state.status === "loading"} className="mt-10">
+    <section aria-labelledby="home-trending" aria-busy={!sections} className="mt-10">
       <SectionHeader id="home-trending" title="Top Trending Products" />
       <ul className="mt-6 grid grid-cols-2 gap-x-4 gap-y-6 px-gutter">
-        {state.status === "ready"
-          ? state.data.sections.trending.map((product) => (
+        {sections
+          ? sections.trending.map((product) => (
               <li key={product.id} className="pt-[15px]">
                 <ProductCard product={product} linkable={product.hasProductPage} comingSoon />
               </li>
@@ -166,16 +200,17 @@ export function HomeTrendingSection() {
 }
 
 export function HomeCustomisationSection() {
-  const { state } = useHomeCatalogue();
+  const { state, sections } = useAudienceSections();
   if (state.status === "error") return null;
+  if (sections && sections.trendingCustomisation.length === 0) return null;
 
   return (
-    <section aria-labelledby="home-customisation" aria-busy={state.status === "loading"} className="mt-10">
+    <section aria-labelledby="home-customisation" aria-busy={!sections} className="mt-10">
       <SectionHeader id="home-customisation" title="Top Trending Customisation" />
       <div className="mt-6">
-        {state.status === "ready" ? (
+        {sections ? (
           <ProductRail label="Top trending customisation" gap={15}>
-            {state.data.sections.trendingCustomisation.map((product) => (
+            {sections.trendingCustomisation.map((product) => (
               <ProductCard
                 key={product.id}
                 product={product}
@@ -191,5 +226,25 @@ export function HomeCustomisationSection() {
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * Shown in place of the product sections when the chosen Men/Women/Kids tab
+ * has no products at all (V1: Kids), in the same style as Shop's empty state.
+ */
+export function HomeNoProducts() {
+  const { state, sections, audience } = useAudienceSections();
+  if (state.status === "error" || !sections) return null;
+  const empty =
+    sections.topPicks.length === 0 &&
+    sections.trending.length === 0 &&
+    sections.trendingCustomisation.length === 0;
+  if (!empty) return null;
+
+  return (
+    <div className="mt-10">
+      <EmptyState icon="bag" title={`No ${AUDIENCE_LABEL[audience]} products yet`} compact />
+    </div>
   );
 }

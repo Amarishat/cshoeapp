@@ -4,6 +4,7 @@ import {
   HomeBrandsSection,
   HomeCatalogueProvider,
   HomeCustomisationSection,
+  HomeNoProducts,
   HomeTopPicksSection,
   HomeTrendingSection,
 } from "@/components/home/HomeCatalogue";
@@ -39,6 +40,8 @@ export default function HomePage() {
 
         <HomeTopPicksSection />
         <HomeTrendingSection />
+        {/* Nothing for this audience (V1: Kids): says so where the products would be. */}
+        <HomeNoProducts />
 
         <div className="mt-10 px-gutter">
           <CustomizeBanner />

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { cn } from "@/lib/cn";
-import { MOCK_DELIVERY_LABEL } from "@/lib/data/delivery";
+import { deliveryByLabel } from "@/lib/orders";
 import { formatPrice } from "@/lib/pricing";
 import type { BagProduct, CartItem } from "@/lib/types";
 
@@ -82,7 +82,7 @@ export function OrderItemRow({
           </p>
         </div>
       </div>
-      <p className="mt-[22px] text-[15px] text-ink/50">{MOCK_DELIVERY_LABEL}</p>
+      <p className="mt-[22px] text-[15px] text-ink/50">{deliveryByLabel()}</p>
     </li>
   );
 }

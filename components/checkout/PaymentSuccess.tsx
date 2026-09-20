@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { CatalogueError } from "@/components/product/CatalogueStatus";
-import { MOCK_DELIVERY_DATE } from "@/lib/data/delivery";
 import { getOrderByNumber } from "@/lib/data/userOrders";
+import { formatDeliveryDate } from "@/lib/orders";
 import { formatPrice } from "@/lib/pricing";
 import { useBagStore } from "@/lib/store/bag";
 import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
@@ -72,7 +72,7 @@ export function PaymentSuccess({ orderNumber }: { orderNumber: string | null }) 
           [
             ["Order ID", order.id],
             ["Amount Paid", formatPrice(order.totals.total)],
-            ["Arriving by", MOCK_DELIVERY_DATE],
+            ["Arriving by", formatDeliveryDate(order.createdAt)],
           ] as const
         ).map(([label, value]) => (
           <div key={label} className="flex items-baseline justify-between gap-3">
