@@ -93,10 +93,21 @@ function Detail({ customizer }: { customizer: Customizer }) {
       <Link href="/admin/customizer" className="text-secondary text-ink/60 underline">
         ← Customizer
       </Link>
-      <h1 className="mt-3 text-heading font-semibold">{customizer.productName}</h1>
-      <p className="mt-2 text-secondary text-ink/60">
-        {customizer.productSlug} · {parts.length} parts · {colours.length} colours
-      </p>
+      <div className="mt-3 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-heading font-semibold">{customizer.productName}</h1>
+          <p className="mt-2 text-secondary text-ink/60">
+            {customizer.productSlug} · {parts.length} parts · {colours.length} colours
+          </p>
+        </div>
+        <Link
+          href={`/admin/customizer/${customizer.productId}/edit`}
+          aria-label={`Edit the ${customizer.productName} customiser`}
+          className="rounded-[9px] border border-border px-3 py-1.5 text-secondary font-medium hover:bg-surface"
+        >
+          Edit
+        </Link>
+      </div>
 
       {/* Configuration */}
       <section aria-labelledby="config" className="mt-8 rounded-card border border-border bg-page p-6">
