@@ -46,14 +46,16 @@ export class AdminOrderError extends Error {
   }
 }
 
-/** Orders visible to the signed-in account, newest first. */
-export async function loadAdminOrders(): Promise<AdminOrder[]> {
-  const { data, error } = await getSupabaseClient()
+/** Orders visible to the signed-in account, newest first; `limit` caps the rows. */
+export async function listAdminOrders(limit?: number): Promise<AdminOrder[]> {
+  let query = getSupabaseClient()
     .from("orders")
     .select("order_number, created_at, status, total, ship_full_name, order_items(count)")
     .order("created_at", { ascending: false })
-    .order("order_number", { ascending: false })
-    .overrideTypes<AdminOrderRow[], { merge: false }>();
+    .order("order_number", { ascending: false });
+  if (limit !== undefined) query = query.limit(limit);
+
+  const { data, error } = await query.overrideTypes<AdminOrderRow[], { merge: false }>();
   if (error) throw new AdminOrderError("load the orders", error);
 
   return data.map((row) => ({
@@ -64,6 +66,11 @@ export async function loadAdminOrders(): Promise<AdminOrder[]> {
     shipName: row.ship_full_name,
     itemCount: row.order_items[0]?.count ?? 0,
   }));
+}
+
+/** Every visible order — what the Orders screen lists. */
+export function loadAdminOrders(): Promise<AdminOrder[]> {
+  return listAdminOrders();
 }
 
 // ---------------------------------------------------------------------------
