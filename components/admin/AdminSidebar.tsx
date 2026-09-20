@@ -10,7 +10,7 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 interface NavItem {
   label: string;
   /** Only items with a built screen link; the rest are Coming Soon. */
-  href?: "/admin" | "/admin/products" | "/admin/brands";
+  href?: "/admin" | "/admin/products" | "/admin/brands" | "/admin/customizer";
 }
 
 /** Only Dashboard is built; the rest are listed so the shape of the admin is clear. */
@@ -18,7 +18,7 @@ const items: NavItem[] = [
   { label: "Dashboard", href: "/admin" },
   { label: "Products", href: "/admin/products" },
   { label: "Brands", href: "/admin/brands" },
-  { label: "Customizer" },
+  { label: "Customizer", href: "/admin/customizer" },
   { label: "Orders" },
   { label: "Settings" },
 ];
