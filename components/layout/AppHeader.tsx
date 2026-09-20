@@ -1,9 +1,8 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/ui/Icon";
-import type { User } from "@/lib/types";
 import { BackButton } from "./BackButton";
-import { DrawerMenu } from "./DrawerMenu";
+import { DrawerMenu, type DrawerUser } from "./DrawerMenu";
 
 /**
  * Screen header: leading control, title, trailing actions (Figma: 30px icons,
@@ -25,8 +24,11 @@ export function AppHeader({
   backHref?: string;
   /** Always go to `backHref` instead of browser history (e.g. Account → Home). */
   backAlwaysToHref?: boolean;
-  /** With `leading="menu"`: the user shown in the side drawer the button opens. */
-  menuUser?: Pick<User, "firstName" | "city">;
+  /**
+   * With `leading="menu"`: the user shown in the side drawer the button opens
+   * (`null` while their profile is still loading; omitted = no drawer).
+   */
+  menuUser?: DrawerUser | null;
   title?: ReactNode;
   titleClassName?: string;
   actions?: ReactNode;
@@ -40,7 +42,7 @@ export function AppHeader({
       )}
     >
       {leading === "menu" &&
-        (menuUser ? (
+        (menuUser !== undefined ? (
           <DrawerMenu user={menuUser} />
         ) : (
           // Without a user there is no drawer to open (e.g. UI previews).

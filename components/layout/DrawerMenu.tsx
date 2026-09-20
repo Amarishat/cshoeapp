@@ -7,7 +7,12 @@ import { AvatarPlaceholder } from "@/components/ui/AvatarPlaceholder";
 import { ComingSoonBadge } from "@/components/ui/ComingSoonBadge";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
-import type { User } from "@/lib/types";
+
+/** Who the drawer greets: the guest's Supabase profile (city optional). */
+export interface DrawerUser {
+  firstName: string;
+  city: string | null;
+}
 
 type DrawerIcon =
   | { icon: IconName; iconClassName: string }
@@ -82,7 +87,7 @@ function ItemRow({ item, onNavigate }: { item: DrawerItem; onNavigate: () => voi
  * A modal dialog pinned to the left of the 430px app column: 312px panel,
  * 25% black backdrop. Closes on backdrop tap, Escape, or a working item.
  */
-export function DrawerMenu({ user }: { user: Pick<User, "firstName" | "city"> }) {
+export function DrawerMenu({ user }: { user: DrawerUser | null }) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -178,11 +183,23 @@ export function DrawerMenu({ user }: { user: Pick<User, "firstName" | "city"> })
             <div className="ml-[30px] h-[85px] w-[86px] rounded-[4px] border-8 border-white bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.2),0_0_2px_rgba(0,0,0,0.08),0_2px_6px_rgba(0,0,0,0.1)]">
               <AvatarPlaceholder className="size-full" />
             </div>
-            <p className="mt-[15px] truncate pr-5 pl-[43px] text-[22px]">{user.firstName}</p>
-            <p className="mt-[7px] flex items-center gap-[3px] pr-5 pl-[41px] text-[15px] leading-[18px]">
-              <Icon name="location" className="size-4" />
-              <span className="truncate">{user.city}</span>
-            </p>
+            {user ? (
+              <>
+                <p className="mt-[15px] truncate pr-5 pl-[43px] text-[22px]">{user.firstName}</p>
+                {/* Figma's location line; hidden when no city is saved. */}
+                {user.city && (
+                  <p className="mt-[7px] flex items-center gap-[3px] pr-5 pl-[41px] text-[15px] leading-[18px]">
+                    <Icon name="location" className="size-4" />
+                    <span className="truncate">{user.city}</span>
+                  </p>
+                )}
+              </>
+            ) : (
+              <div aria-busy="true" aria-label="Loading your profile" className="animate-pulse">
+                <div className="mt-[18px] ml-[43px] h-5 w-28 rounded bg-surface" />
+                <div className="mt-[10px] ml-[41px] h-4 w-20 rounded bg-surface" />
+              </div>
+            )}
           </div>
 
           {/* Figma 1:1105: #CCC 0.5px line under the profile */}

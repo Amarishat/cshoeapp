@@ -1,11 +1,5 @@
 export type Audience = "men" | "women" | "kids";
 
-export interface User {
-  id: string;
-  firstName: string;
-  city: string;
-}
-
 export interface Brand {
   id: string;
   name: string;
