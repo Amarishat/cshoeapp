@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { cn } from "@/lib/cn";
 import { getProducts, type CatalogueProduct } from "@/lib/data/supabaseCatalog";
@@ -52,6 +53,15 @@ function ProductRow({ product }: { product: CatalogueProduct }) {
       </td>
       <td className={cell}>
         <Flag on={product.hasProductPage} yes="Live" no="No page" />
+      </td>
+      <td className={cn(cell, "text-right")}>
+        <Link
+          href={`/admin/products/${product.id}`}
+          aria-label={`Edit ${product.name}`}
+          className="rounded-[9px] border border-border px-3 py-1.5 text-secondary font-medium hover:bg-surface"
+        >
+          Edit
+        </Link>
       </td>
     </tr>
   );
@@ -129,6 +139,9 @@ export function AdminProductsView() {
                   </th>
                   <th scope="col" className={head}>
                     Product page
+                  </th>
+                  <th scope="col" className={head}>
+                    <span className="sr-only">Actions</span>
                   </th>
                 </tr>
               </thead>
