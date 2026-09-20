@@ -4,8 +4,9 @@ import type { Brand } from "@/lib/types";
 /*
  * The Shop catalogue (Shop and its Filters screen), read from Supabase. The
  * database has no display-order column, so membership and order are fixed
- * here by id — the same 11 products, in the same order, as the V1 Shop
- * (Sabrina 2 EP is not part of Shop).
+ * here by id — the same 11 products, in the same order, as the V1 Shop.
+ * Sabrina 2 EP is not one of them, but it is part of the catalogue and has
+ * its own product page, so search covers it too (`searchable`).
  */
 export const SHOP_PRODUCT_IDS = [
   "nike-lite",
@@ -27,6 +28,12 @@ export const SHOP_BRAND_IDS = ["nike", "adidas", "puma", "asics", "new-balance",
 export interface ShopCatalogue {
   /** The Shop products, in Shop order. */
   products: CatalogueProduct[];
+  /**
+   * What a search looks through: the Shop products, in Shop order, followed
+   * by the rest of the catalogue (e.g. Sabrina 2 EP), so a product with its
+   * own page can always be found by name.
+   */
+  searchable: CatalogueProduct[];
   /** "Shop by Brands", in Figma order. */
   brands: Brand[];
   /** Every brand, in brand-row order (sort_order). */
@@ -46,8 +53,10 @@ export async function loadShopCatalogue(): Promise<ShopCatalogue> {
       if (!item) throw new Error(`Shop ${kind} "${id}" is missing from the catalogue.`);
       return item;
     });
+  const shopProducts = pick(byId, SHOP_PRODUCT_IDS, "product");
   return {
-    products: pick(byId, SHOP_PRODUCT_IDS, "product"),
+    products: shopProducts,
+    searchable: [...shopProducts, ...products.filter((p) => !SHOP_PRODUCT_IDS.includes(p.id))],
     brands: pick(brandById, SHOP_BRAND_IDS, "brand"),
     allBrands,
     brandNames: Object.fromEntries(allBrands.map((b) => [b.id, b.name])),

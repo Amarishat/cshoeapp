@@ -136,11 +136,12 @@ export function ShopView({
   const data = catalogue.status === "ready" ? catalogue.data : null;
   const products = data?.products ?? [];
 
-  // A search covers the whole catalogue (all audiences) unless an audience
-  // tab is chosen; the normal Shop follows the shared Men/Women/Kids choice.
+  // A search covers the whole catalogue (all audiences, and products that
+  // aren't part of Shop) unless an audience tab is chosen; the normal Shop
+  // shows its own products and follows the shared Men/Women/Kids choice.
   const audience = query ? searchAudience : preferredAudience;
   const shown = applyShopFilters(
-    query && data ? searchProducts(products, query, data.brandNames) : products,
+    query && data ? searchProducts(data.searchable, query, data.brandNames) : products,
     audience,
     filters,
   );

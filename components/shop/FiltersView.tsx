@@ -108,13 +108,16 @@ export function FiltersView({
     );
   }
 
-  const { products, allBrands, brandNames } = state.data;
+  const { products, searchable, allBrands, brandNames } = state.data;
+  // Filtering a search works on what that search can find, so its brands and
+  // price range cover those products too.
+  const pool = query ? searchable : products;
   return (
     <FiltersForm
-      products={products}
-      // Only brands that actually have Shop products, in brand-row order.
-      brands={allBrands.filter((b) => products.some((p) => p.brand === b.id))}
-      bounds={priceBounds(products)}
+      products={pool}
+      // Only brands that actually have products here, in brand-row order.
+      brands={allBrands.filter((b) => pool.some((p) => p.brand === b.id))}
+      bounds={priceBounds(pool)}
       brandNames={brandNames}
       query={query}
       searchAudience={searchAudience}
