@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Jost, Sora } from "next/font/google";
-import { AppShell } from "@/components/layout/AppShell";
 import "./globals.css";
 
 const inter = Inter({
@@ -39,10 +38,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${inter.variable} ${sora.variable} ${jost.variable} antialiased`}>
       <body className="font-sans">
-        {/* The guest session and the customer stores belong to the customer
-            app, so the (tabs) and (stack) layouts start them — not here, where
-            a future /admin would inherit them and mint an anonymous user. */}
-        <AppShell>{children}</AppShell>
+        {/* The guest session, the customer stores and the 430px app column
+            belong to the customer app, so the (tabs) and (stack) layouts
+            provide them — not here, where /admin would inherit them. */}
+        {children}
       </body>
     </html>
   );
