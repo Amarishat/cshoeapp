@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { cn } from "@/lib/cn";
 import { loadAdminOrders } from "@/lib/data/adminOrders";
@@ -90,6 +91,9 @@ export function AdminOrdersView() {
                   <th scope="col" className={head}>
                     Status
                   </th>
+                  <th scope="col" className={head}>
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -113,6 +117,15 @@ export function AdminOrdersView() {
                       >
                         {STATUS_LABEL[order.status]}
                       </span>
+                    </td>
+                    <td className={cn(cell, "text-right")}>
+                      <Link
+                        href={`/admin/orders/${order.orderNumber}`}
+                        aria-label={`View order ${order.orderNumber}`}
+                        className="rounded-[9px] border border-border px-3 py-1.5 text-secondary font-medium hover:bg-surface"
+                      >
+                        View
+                      </Link>
                     </td>
                   </tr>
                 ))}
