@@ -42,8 +42,23 @@ export interface ShopCatalogue {
   brandNames: Record<string, string>;
 }
 
+/**
+ * Shop search results and Shop by Brands are separate components that both
+ * need this catalogue, so calls made while one is still in flight share it
+ * instead of reading Supabase twice. The promise is released as soon as it
+ * settles — nothing is cached between page loads or retries.
+ */
+let inFlight: Promise<ShopCatalogue> | null = null;
+
 /** Picks Shop's products and brands in Shop order; anything missing is an error, not a gap. */
-export async function loadShopCatalogue(): Promise<ShopCatalogue> {
+export function loadShopCatalogue(): Promise<ShopCatalogue> {
+  inFlight ??= readShopCatalogue().finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
+}
+
+async function readShopCatalogue(): Promise<ShopCatalogue> {
   const [products, allBrands] = await Promise.all([getProducts(), getBrands()]);
   const byId = new Map(products.map((p) => [p.id, p]));
   const brandById = new Map(allBrands.map((b) => [b.id, b]));

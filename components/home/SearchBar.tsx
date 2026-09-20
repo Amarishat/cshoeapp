@@ -1,6 +1,7 @@
 import type { KeyboardEventHandler } from "react";
 import { ComingSoonBadge } from "@/components/ui/ComingSoonBadge";
 import { Icon } from "@/components/ui/Icon";
+import type { SearchBasePath } from "@/lib/shopFilters";
 
 /**
  * Home search field (Figma 1:1716): 55px, white, #CCC border, 7px radius,
@@ -13,10 +14,13 @@ import { Icon } from "@/components/ui/Icon";
  * be edited, and focuses it (`autoFocus`).
  */
 export function SearchBar({
+  action = "/shop",
   defaultValue,
   autoFocus = false,
   onKeyDown,
 }: {
+  /** Where the search goes: Home shows its results in place, other screens use Shop. */
+  action?: SearchBasePath;
   defaultValue?: string;
   autoFocus?: boolean;
   /** e.g. Escape to close the header search. */
@@ -25,7 +29,7 @@ export function SearchBar({
   return (
     <form
       role="search"
-      action="/shop"
+      action={action}
       onKeyDown={onKeyDown}
       className="relative flex h-[55px] items-center rounded-[7px] border border-border bg-white pr-3 pl-[15px]"
     >

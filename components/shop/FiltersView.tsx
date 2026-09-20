@@ -17,6 +17,7 @@ import {
   searchProducts,
   shopSearchHref,
   SORT_OPTIONS,
+  type SearchBasePath,
   type ShopFilters,
   type ShopSort,
 } from "@/lib/shopFilters";
@@ -78,11 +79,14 @@ function SortOptions({ value, onChange }: { value: ShopSort | null; onChange: (v
 export function FiltersView({
   query,
   searchAudience,
+  basePath,
 }: {
-  /** The Shop search being filtered (`?q=`), if any. */
+  /** The search being filtered (`?q=`), if any. */
   query: string | null;
   /** The search's audience (`?audience=`); `null` = all. */
   searchAudience: Audience | null;
+  /** The screen that search belongs to ("/" or "/shop"), where Apply returns. */
+  basePath: SearchBasePath;
 }) {
   const { state, retry } = useCatalogueLoad(loadShopCatalogue);
 
@@ -121,6 +125,7 @@ export function FiltersView({
       brandNames={brandNames}
       query={query}
       searchAudience={searchAudience}
+      basePath={basePath}
     />
   );
 }
@@ -129,7 +134,7 @@ export function FiltersView({
  * Sort & Filter — Figma frame 1:5769, V1. Only filters our catalogue supports:
  * audience, price sort, price range and brand (Brand is an addition to
  * Figma). Changes are a draft until Apply, which saves them for this browsing
- * session and returns to Shop. The count updates live.
+ * session and returns to the screen it was opened from. The count updates live.
  */
 function FiltersForm({
   products,
@@ -138,16 +143,19 @@ function FiltersForm({
   brandNames,
   query,
   searchAudience,
+  basePath,
 }: {
   products: Product[];
   brands: Brand[];
   bounds: [number, number];
   /** Brand id → name, for text search. */
   brandNames: Record<string, string>;
-  /** The Shop search being filtered (`?q=`), if any. */
+  /** The search being filtered (`?q=`), if any. */
   query: string | null;
   /** The search's audience (`?audience=`); `null` = all. */
   searchAudience: Audience | null;
+  /** The screen that search belongs to ("/" or "/shop"), where Apply returns. */
+  basePath: SearchBasePath;
 }) {
   const router = useRouter();
   const applied = useShopFilterStore((s) => s.filters);
@@ -198,9 +206,9 @@ function FiltersForm({
   function apply() {
     applyFilters(draft);
     if (query) {
-      // Back to the same search, with the chosen audience in the URL.
+      // Back to the same search — on the screen it came from (Home or Shop).
       setOpenedFromShop(false);
-      router.replace(shopSearchHref(query, countAudience));
+      router.replace(shopSearchHref(query, countAudience, basePath));
       return;
     }
     if (countAudience) setAudience(countAudience);

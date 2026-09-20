@@ -85,9 +85,17 @@ export function searchProducts<T extends Product>(products: T[], query: string, 
   });
 }
 
-/** Shop URL for a search; `audience` is only present when chosen explicitly. */
-export function shopSearchHref(query: string, audience: Audience | null) {
+/** Where a search lives: Home or Shop (both show the same results). */
+export type SearchBasePath = "/" | "/shop";
+
+/** Search URL for `basePath`; `audience` is only present when chosen explicitly. */
+export function shopSearchHref(query: string, audience: Audience | null, basePath: SearchBasePath = "/shop") {
   const params = new URLSearchParams({ q: query });
   if (audience) params.set("audience", audience);
-  return `/shop?${params.toString()}`;
+  return `${basePath}?${params.toString()}`;
+}
+
+/** Reads `?from=` (the screen a search came from); anything else means Shop. */
+export function parseSearchBasePath(value: unknown): SearchBasePath {
+  return value === "/" ? "/" : "/shop";
 }
