@@ -25,6 +25,10 @@ interface CheckoutState {
   syncAddresses: (addresses: Address[]) => void;
 }
 
+/** Supabase gives every address a uuid; V1's device-only ids were "addr-…". */
+const isSupabaseId = (id: string | null): id is string =>
+  id !== null && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
 // Only one address can be the default.
 const withDefault = (addresses: Address[], defaultId: string) =>
   addresses.map((a) => ({ ...a, isDefault: a.id === defaultId }));
@@ -66,7 +70,21 @@ export const useCheckoutStore = create<CheckoutState>()(
     {
       name: "cs-checkout",
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({ addresses: state.addresses, selectedAddressId: state.selectedAddressId }),
+      // Only the chosen address is remembered on the device; the addresses
+      // themselves are the user's Supabase rows, loaded on every visit.
+      partialize: (state) => ({ selectedAddressId: state.selectedAddressId }),
+      version: 1,
+      /**
+       * Version 0 also stored the addresses (once seeded with a sample
+       * address). Those are dropped; only a chosen Supabase address id is
+       * kept — V1's own ids ("addr-…") never existed in Supabase.
+       */
+      migrate: (persisted, version) => {
+        const state = persisted as Partial<CheckoutState> | undefined;
+        const selectedAddressId = state?.selectedAddressId ?? null;
+        if (version >= 1) return { selectedAddressId };
+        return { selectedAddressId: isSupabaseId(selectedAddressId) ? selectedAddressId : null };
+      },
       skipHydration: true,
     },
   ),
