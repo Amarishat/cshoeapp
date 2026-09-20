@@ -2,7 +2,6 @@
 
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { seedAddresses } from "@/lib/data/addresses";
 import type { Address, AddressInput } from "@/lib/types";
 
 interface CheckoutState {
@@ -33,8 +32,10 @@ const withDefault = (addresses: Address[], defaultId: string) =>
 export const useCheckoutStore = create<CheckoutState>()(
   persist(
     (set) => ({
-      addresses: seedAddresses,
-      selectedAddressId: seedAddresses[0]?.id ?? null,
+      // Empty until the Address screen loads the user's own addresses from
+      // Supabase (syncAddresses); nothing is shown before that.
+      addresses: [],
+      selectedAddressId: null,
       selectAddress: (id) => set({ selectedAddressId: id }),
       addAddress: (input) => {
         const id = `addr-${crypto.randomUUID()}`;
