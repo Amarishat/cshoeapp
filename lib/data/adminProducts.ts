@@ -150,3 +150,42 @@ export async function listAdminProductImages(productId: string): Promise<AdminPr
     sortOrder: row.sort_order,
   }));
 }
+
+// ---------------------------------------------------------------------------
+// Product sizes (read-only for now)
+// ---------------------------------------------------------------------------
+
+/**
+ * One row of public.product_sizes. The table holds the UK size, whether it is
+ * the size the product page starts on, and the display order — there is no
+ * stock or availability column, so none is shown.
+ */
+export interface AdminProductSize {
+  sizeUK: number;
+  /** Preselected on the product page. */
+  isDefault: boolean;
+  sortOrder: number;
+}
+
+interface AdminProductSizeRow {
+  size_uk: number;
+  is_default: boolean;
+  sort_order: number;
+}
+
+/** A product's sizes in the order the product page lists them (sort_order). */
+export async function listAdminProductSizes(productId: string): Promise<AdminProductSize[]> {
+  const { data, error } = await getSupabaseClient()
+    .from("product_sizes")
+    .select("size_uk, is_default, sort_order")
+    .eq("product_id", productId)
+    .order("sort_order")
+    .overrideTypes<AdminProductSizeRow[], { merge: false }>();
+  if (error) throw new AdminProductError(`load the sizes for "${productId}"`, error);
+
+  return data.map((row) => ({
+    sizeUK: Number(row.size_uk),
+    isDefault: row.is_default,
+    sortOrder: row.sort_order,
+  }));
+}
