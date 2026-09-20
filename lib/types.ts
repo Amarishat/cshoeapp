@@ -248,6 +248,8 @@ export interface Order {
 /** What the Bag needs to show and price a bag item. */
 export interface BagProduct {
   productId: string;
+  /** Product page / customiser URL slug, e.g. "nike-air-force". */
+  slug: string;
   name: string;
   category: string;
   /** Current selling price in rupees. */

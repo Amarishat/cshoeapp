@@ -9,8 +9,9 @@ import {
   setAllCartSelected,
   setCartQuantity,
   setCartSelected,
+  updateCartCustomization,
 } from "@/lib/data/userCart";
-import type { CartItem } from "@/lib/types";
+import type { CartItem, CustomizationSelection } from "@/lib/types";
 
 /*
  * The Bag. Supabase (public.cart_items, via lib/data/userCart) is the source
@@ -43,6 +44,8 @@ interface BagState {
   setQuantity: (id: string, quantity: number) => Promise<string | null>;
   setSelected: (id: string, selected: boolean) => Promise<string | null>;
   setAllSelected: (selected: boolean) => Promise<string | null>;
+  /** Replaces one item's design; its product, size, quantity and selection stay. */
+  setCustomization: (id: string, customization: CustomizationSelection | null) => Promise<string | null>;
   /** Reloads the Bag from Supabase (e.g. after place_order() removed the ordered rows). */
   refresh: () => Promise<string | null>;
 }
@@ -123,6 +126,15 @@ export const useBagStore = create<BagState>()((set, get) => {
         () => setAllCartSelected(selected),
         (items) => items.map((i) => ({ ...i, selected })),
       ),
+    setCustomization: (id, customization) => {
+      let updated: CartItem | null = null;
+      return change(
+        async () => {
+          updated = await updateCartCustomization(id, customization);
+        },
+        (items) => items.map((i) => (i.id === id && updated ? updated : i)),
+      );
+    },
     refresh: () =>
       change(
         async () => {},

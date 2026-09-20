@@ -135,6 +135,32 @@ async function updateRows(action: string, values: Record<string, unknown>, ids: 
   if (error) throw new CartError(action, error);
 }
 
+/**
+ * Replaces one item's customisation (the design), leaving its product, size,
+ * quantity and selection alone. An empty selection makes the item plain.
+ * Returns the item as listCart() would.
+ */
+export async function updateCartCustomization(
+  id: string,
+  customization: CustomizationSelection | null,
+): Promise<CartItem> {
+  const userId = await currentUserId();
+  const design = customization && Object.keys(customization).length > 0 ? customization : null;
+  const { data, error } = await getSupabaseClient()
+    .from("cart_items")
+    .update({ customization: design })
+    .eq("user_id", userId)
+    .eq("id", id)
+    .select(COLUMNS)
+    .maybeSingle()
+    .overrideTypes<CartRow | null, { merge: false }>();
+  if (error) throw new CartError("save your customisation", error);
+  if (!data) {
+    throw new CartError("save your customisation", { message: "that bag item no longer exists" });
+  }
+  return toCartItem(data);
+}
+
 export async function setCartQuantity(id: string, quantity: number) {
   if (!Number.isInteger(quantity) || quantity < 1) {
     throw new CartError("change the quantity", { message: "quantity must be at least 1" });

@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { cn } from "@/lib/cn";
@@ -54,8 +55,9 @@ function CustomizationDetails({
 /**
  * One bag item (Figma 1:2782 / 1:2755 / 1:2734): checkbox, shoe cut-out with a
  * soft shadow, "Qty" + pill stepper underneath; details column 186px in with
- * an optional "Customised" label, name, category, size, MRP, tax note and,
- * for a customised item, the parts and colours chosen for it.
+ * an optional "Customised" label (with an Edit link to the customiser), name,
+ * category, size, MRP, tax note and, for a customised item, the parts and
+ * colours chosen for it.
  */
 export function BagItemRow({
   item,
@@ -112,7 +114,7 @@ export function BagItemRow({
 
       <div className={cn("min-w-0", !customised && "pt-[43px]")}>
         {customised && (
-          <p className="flex items-center gap-[14px] text-body font-medium">
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-body font-medium">
             Customised
             <Image
               src="/images/icons/customise.png"
@@ -121,6 +123,13 @@ export function BagItemRow({
               height={22}
               className="h-[22px] w-6 object-cover"
             />
+            <Link
+              href={`/products/${product.slug}/customise?item=${encodeURIComponent(item.id)}`}
+              aria-label={`Edit the customisation of ${product.name}, size ${sizeLabel}`}
+              className="text-secondary font-medium text-ink/70 underline decoration-from-font underline-offset-auto"
+            >
+              Edit
+            </Link>
           </p>
         )}
         <h2 className={cn("truncate text-body font-medium", customised && "mt-[25px]")}>

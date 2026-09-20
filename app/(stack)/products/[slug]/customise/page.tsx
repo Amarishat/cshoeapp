@@ -22,9 +22,16 @@ export async function generateMetadata({
   return { title: config ? `Customise ${config.title}` : undefined };
 }
 
-/** Customizer — Figma frame 1:6606. */
-export default async function CustomisePage({ params }: PageProps<"/products/[slug]/customise">) {
+/**
+ * Customizer — Figma frame 1:6606. With `?item=<cart item id>` (from the
+ * Bag's Edit link) it edits that Bag item's design instead of adding a new one.
+ */
+export default async function CustomisePage({
+  params,
+  searchParams,
+}: PageProps<"/products/[slug]/customise">) {
   const { slug } = await params;
+  const { item } = await searchParams;
   const config = await getCustomization(slug);
   if (!config) notFound();
 
@@ -45,7 +52,7 @@ export default async function CustomisePage({ params }: PageProps<"/products/[sl
       />
       {/* Figma 1:6686: full-width #CCC line at 70% under the header. */}
       <hr className="mt-[11px] border-border/70" />
-      <CustomizerView config={config} />
+      <CustomizerView config={config} cartItemId={typeof item === "string" ? item : null} />
     </>
   );
 }

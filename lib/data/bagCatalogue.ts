@@ -22,6 +22,7 @@ export async function loadBagCatalogue(): Promise<Record<string, BagProduct>> {
     if (!d?.cutout) continue;
     catalog[d.id] = {
       productId: d.id,
+      slug: d.slug,
       name: d.name,
       category: d.category,
       price: d.price,
@@ -32,6 +33,7 @@ export async function loadBagCatalogue(): Promise<Record<string, BagProduct>> {
     if (!c) continue;
     catalog[c.productId] = {
       productId: c.productId,
+      slug: c.slug,
       name: c.title,
       category: c.category,
       price: c.price,
