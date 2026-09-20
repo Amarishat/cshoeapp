@@ -2,6 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useMemo, useState } from "react";
+import {
+  AdminProductFilters,
+  applyProductFilters,
+  filtersActive,
+  NO_FILTERS,
+  type ProductFilters,
+} from "@/components/admin/AdminProductFilters";
 import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { cn } from "@/lib/cn";
 import { getProducts, type CatalogueProduct } from "@/lib/data/supabaseCatalog";
@@ -82,6 +90,14 @@ function ProductRow({ product }: { product: CatalogueProduct }) {
  */
 export function AdminProductsView() {
   const { state, retry } = useCatalogueLoad(getProducts);
+  const [filters, setFilters] = useState<ProductFilters>(NO_FILTERS);
+
+  const products = state.status === "ready" ? state.data : null;
+  const shown = useMemo(
+    () => (products ? applyProductFilters(products, filters) : []),
+    [products, filters],
+  );
+  const active = filtersActive(filters);
 
   return (
     <section aria-labelledby="admin-products" className="max-w-[1100px]">
@@ -89,10 +105,21 @@ export function AdminProductsView() {
         Products
       </h1>
       <p className="mt-2 text-secondary text-ink/60">
-        {state.status === "ready"
-          ? `${state.data.length} ${state.data.length === 1 ? "product" : "products"} in the catalogue`
-          : "From the Supabase catalogue"}
+        {products === null
+          ? "From the Supabase catalogue"
+          : active
+            ? `Showing ${shown.length} of ${products.length} ${products.length === 1 ? "product" : "products"}`
+            : `${products.length} ${products.length === 1 ? "product" : "products"} in the catalogue`}
       </p>
+
+      {products !== null && products.length > 0 && (
+        <AdminProductFilters
+          products={products}
+          filters={filters}
+          onChange={setFilters}
+          onClear={() => setFilters(NO_FILTERS)}
+        />
+      )}
 
       {state.status === "error" && (
         <div className="mt-8">
@@ -117,11 +144,22 @@ export function AdminProductsView() {
         </div>
       )}
 
-      {state.status === "ready" &&
-        (state.data.length === 0 ? (
+      {products !== null &&
+        (products.length === 0 ? (
           <p className="mt-8 rounded-card border border-border bg-page p-10 text-center text-body text-ink/60">
             No products in the catalogue yet.
           </p>
+        ) : shown.length === 0 ? (
+          <div className="mt-8 rounded-card border border-border bg-page p-10 text-center">
+            <p className="text-body text-ink/60">No products match these filters.</p>
+            <button
+              type="button"
+              onClick={() => setFilters(NO_FILTERS)}
+              className="mt-5 rounded-[9px] border border-border px-3 py-1.5 text-secondary font-medium hover:bg-surface"
+            >
+              Clear search and filters
+            </button>
+          </div>
         ) : (
           <div className="mt-8 overflow-x-auto rounded-card border border-border bg-page">
             <table className="w-full border-collapse text-label">
@@ -158,7 +196,7 @@ export function AdminProductsView() {
                 </tr>
               </thead>
               <tbody>
-                {state.data.map((product) => (
+                {shown.map((product) => (
                   <ProductRow key={product.id} product={product} />
                 ))}
               </tbody>
