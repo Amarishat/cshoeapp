@@ -1,4 +1,4 @@
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getAdminSupabaseClient } from "@/lib/supabase/client";
 import type { AddressType, OrderStatus } from "@/lib/types";
 
 /*
@@ -48,7 +48,7 @@ export class AdminOrderError extends Error {
 
 /** Orders visible to the signed-in account, newest first; `limit` caps the rows. */
 export async function listAdminOrders(limit?: number): Promise<AdminOrder[]> {
-  let query = getSupabaseClient()
+  let query = getAdminSupabaseClient()
     .from("orders")
     .select("order_number, created_at, status, total, ship_full_name, order_items(count)")
     .order("created_at", { ascending: false })
@@ -166,7 +166,7 @@ const ADMIN_ORDER_COLUMNS =
 
 /** One order by its order number; null if this account can't see it (or it doesn't exist). */
 export async function getAdminOrder(orderNumber: string): Promise<AdminOrderDetail | null> {
-  const { data, error } = await getSupabaseClient()
+  const { data, error } = await getAdminSupabaseClient()
     .from("orders")
     .select(ADMIN_ORDER_COLUMNS)
     .eq("order_number", orderNumber)
@@ -228,7 +228,7 @@ export async function updateAdminOrderStatus(
   orderNumber: string,
   status: OrderStatus,
 ): Promise<OrderStatus> {
-  const { data, error } = await getSupabaseClient()
+  const { data, error } = await getAdminSupabaseClient()
     .from("orders")
     .update({ status })
     .eq("order_number", orderNumber)

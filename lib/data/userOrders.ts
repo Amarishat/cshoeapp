@@ -140,12 +140,17 @@ function toOrder(row: OrderRow): Order {
   };
 }
 
-/** One of the guest's orders by its order number; null if there is no such order. */
+/**
+ * One of the guest's orders by its order number; null if there is no such
+ * order. Filtered by the guest's user id as well as RLS, since admins may read
+ * every order (008) and this must only ever return the guest's own.
+ */
 export async function getOrderByNumber(orderNumber: string): Promise<Order | null> {
-  await ensureGuestSession();
+  const userId = (await ensureGuestSession()).user.id;
   const { data, error } = await getSupabaseClient()
     .from("orders")
     .select(ORDER_COLUMNS)
+    .eq("user_id", userId)
     .eq("order_number", orderNumber)
     .maybeSingle()
     .overrideTypes<OrderRow | null, { merge: false }>();

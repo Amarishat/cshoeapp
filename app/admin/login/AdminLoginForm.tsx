@@ -4,17 +4,17 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/TextField";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getAdminSupabaseClient } from "@/lib/supabase/client";
 
 /** One message for a wrong email or a wrong password, so neither can be probed. */
 const WRONG_DETAILS = "Those details don’t match an account.";
 const NOT_ADMIN = "That account doesn’t have admin access.";
 
 /**
- * Admin sign-in. Uses the app's Supabase client with email and password —
- * customers never sign in, so this is the only real session the app creates.
- * A signed-in account that isn't an admin is signed straight back out, so an
- * anonymous or customer session can never reach the admin screens.
+ * Admin sign-in, with email and password. Uses the admin Supabase client, whose
+ * session is stored apart from the customer's guest session, so signing in
+ * here never replaces (or signs out) the storefront's guest. A signed-in
+ * account that isn't an admin is signed straight back out of the admin client.
  */
 export function AdminLoginForm() {
   const router = useRouter();
@@ -32,7 +32,7 @@ export function AdminLoginForm() {
     }
 
     setSigningIn(true);
-    const auth = getSupabaseClient().auth;
+    const auth = getAdminSupabaseClient().auth;
     try {
       const { error: signInError } = await auth.signInWithPassword({
         email: email.trim(),
@@ -44,7 +44,7 @@ export function AdminLoginForm() {
       }
 
       // Signed in — but only an admin may go on (public.is_admin()).
-      const { data: isAdmin, error: checkError } = await getSupabaseClient().rpc("is_admin");
+      const { data: isAdmin, error: checkError } = await getAdminSupabaseClient().rpc("is_admin");
       if (checkError) {
         await auth.signOut();
         setError(`Could not check your access: ${checkError.message}`);

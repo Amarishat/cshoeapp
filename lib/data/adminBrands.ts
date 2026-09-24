@@ -1,5 +1,5 @@
 import { getBrands, getProducts } from "@/lib/data/supabaseCatalog";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getAdminSupabaseClient } from "@/lib/supabase/client";
 
 /*
  * Brands for the admin, read with the same catalogue queries the storefront
@@ -88,7 +88,7 @@ const toBrand = (row: AdminBrandRow): AdminBrandDetail => ({
 
 /** One brand to edit; null if that id isn't in the catalogue. */
 export async function getAdminBrand(id: string): Promise<AdminBrandDetail | null> {
-  const { data, error } = await getSupabaseClient()
+  const { data, error } = await getAdminSupabaseClient()
     .from("brands")
     .select(BRAND_COLUMNS)
     .eq("id", id)
@@ -104,7 +104,7 @@ export async function getAdminBrand(id: string): Promise<AdminBrandDetail | null
  * row, which is reported as an error rather than a silent no-op.
  */
 export async function updateAdminBrand(id: string, edit: AdminBrandEdit): Promise<AdminBrandDetail> {
-  const { data, error } = await getSupabaseClient()
+  const { data, error } = await getAdminSupabaseClient()
     .from("brands")
     .update({
       name: edit.name.trim(),

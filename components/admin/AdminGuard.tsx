@@ -2,15 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getAdminSupabaseClient } from "@/lib/supabase/client";
 
 /**
  * Lets only a signed-in admin through. No session goes to the sign-in page;
- * a session that isn't an admin's (a customer's, or a leftover guest one) is
- * signed out first, so the admin screens can never be reached with it.
+ * an admin-client session that isn't an admin's is signed out first, so the
+ * admin screens can never be reached with it.
  *
- * Uses the Supabase client directly — never ensureGuestSession(), which would
- * create a guest user on an admin route.
+ * Uses the admin Supabase client only — its session is stored apart from the
+ * customer's, so the guest session is never read or signed out here. Never
+ * calls ensureGuestSession(), which would create a guest user on an admin route.
  */
 export function AdminGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -20,7 +21,7 @@ export function AdminGuard({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     async function check() {
-      const auth = getSupabaseClient().auth;
+      const auth = getAdminSupabaseClient().auth;
       const { data, error } = await auth.getSession();
       if (cancelled) return;
 
@@ -29,7 +30,7 @@ export function AdminGuard({ children }: { children: ReactNode }) {
         return;
       }
 
-      const { data: isAdmin, error: checkError } = await getSupabaseClient().rpc("is_admin");
+      const { data: isAdmin, error: checkError } = await getAdminSupabaseClient().rpc("is_admin");
       if (cancelled) return;
 
       if (checkError || !isAdmin) {

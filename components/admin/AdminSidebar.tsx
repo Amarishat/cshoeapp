@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { ComingSoonBadge } from "@/components/ui/ComingSoonBadge";
 import { cn } from "@/lib/cn";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getAdminSupabaseClient } from "@/lib/supabase/client";
 
 interface NavItem {
   label: string;
@@ -38,7 +38,7 @@ export function AdminSidebar() {
   async function signOut() {
     if (signingOut) return;
     setSigningOut(true);
-    await getSupabaseClient().auth.signOut();
+    await getAdminSupabaseClient().auth.signOut();
     router.replace("/admin/login");
   }
 

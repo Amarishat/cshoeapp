@@ -1,4 +1,4 @@
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getAdminSupabaseClient } from "@/lib/supabase/client";
 import type { Audience, GalleryImage, Rect } from "@/lib/types";
 
 /*
@@ -68,7 +68,7 @@ const toProduct = (row: AdminProductRow): AdminProduct => ({
 
 /** One product to edit; null if that id isn't in the catalogue. */
 export async function getAdminProduct(id: string): Promise<AdminProduct | null> {
-  const { data, error } = await getSupabaseClient()
+  const { data, error } = await getAdminSupabaseClient()
     .from("products")
     .select(COLUMNS)
     .eq("id", id)
@@ -84,7 +84,7 @@ export async function getAdminProduct(id: string): Promise<AdminProduct | null> 
  * row, which is reported as an error rather than a silent no-op.
  */
 export async function updateAdminProduct(id: string, edit: AdminProductEdit): Promise<AdminProduct> {
-  const { data, error } = await getSupabaseClient()
+  const { data, error } = await getAdminSupabaseClient()
     .from("products")
     .update({
       name: edit.name.trim(),
@@ -133,7 +133,7 @@ interface AdminProductImageRow {
 
 /** A product's gallery rows, in gallery order (sort_order 0 is the first slide). */
 export async function listAdminProductImages(productId: string): Promise<AdminProductImage[]> {
-  const { data, error } = await getSupabaseClient()
+  const { data, error } = await getAdminSupabaseClient()
     .from("product_images")
     .select("id, src, alt, kind, box, sort_order")
     .eq("product_id", productId)
@@ -175,7 +175,7 @@ interface AdminProductSizeRow {
 
 /** A product's sizes in the order the product page lists them (sort_order). */
 export async function listAdminProductSizes(productId: string): Promise<AdminProductSize[]> {
-  const { data, error } = await getSupabaseClient()
+  const { data, error } = await getAdminSupabaseClient()
     .from("product_sizes")
     .select("size_uk, is_default, sort_order")
     .eq("product_id", productId)
@@ -218,7 +218,7 @@ interface AdminProductReviewRow {
 
 /** A product's reviews, oldest first — the order the product page shows them in. */
 export async function listAdminProductReviews(productId: string): Promise<AdminProductReview[]> {
-  const { data, error } = await getSupabaseClient()
+  const { data, error } = await getAdminSupabaseClient()
     .from("product_reviews")
     .select("id, author_name, rating, body, created_at")
     .eq("product_id", productId)

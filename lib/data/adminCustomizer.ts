@@ -1,4 +1,4 @@
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getAdminSupabaseClient } from "@/lib/supabase/client";
 import type { ViewerAngle } from "@/lib/types";
 
 /*
@@ -44,7 +44,7 @@ const countOf = (rows: CountRow[]) => rows[0]?.count ?? 0;
 
 /** Every product that has a customiser configuration, with its part and colour counts. */
 export async function loadAdminCustomizers(): Promise<AdminCustomizer[]> {
-  const { data, error } = await getSupabaseClient()
+  const { data, error } = await getAdminSupabaseClient()
     .from("customization_configs")
     .select(
       "product_id, title, display_category, " +
@@ -118,7 +118,7 @@ const bySortOrder = <T extends { sort_order: number }>(rows: T[]) =>
 
 /** One product's customiser with its parts and colours; null if it has none. */
 export async function getAdminCustomizer(productId: string): Promise<AdminCustomizerDetail | null> {
-  const { data, error } = await getSupabaseClient()
+  const { data, error } = await getAdminSupabaseClient()
     .from("customization_configs")
     .select(
       "product_id, title, display_category, wordmark, image_url, angles, " +
@@ -243,7 +243,7 @@ async function patchRow(
   patch: Record<string, string | number>,
   action: string,
 ): Promise<void> {
-  const { data, error } = await getSupabaseClient()
+  const { data, error } = await getAdminSupabaseClient()
     .from(table)
     .update(patch)
     .eq("product_id", productId)
@@ -265,7 +265,7 @@ async function saveRows(
   stored: { id: string; sortOrder: number }[],
   label: string,
 ): Promise<void> {
-  const client = getSupabaseClient();
+  const client = getAdminSupabaseClient();
 
   if (removedIds.length > 0) {
     const { data, error } = await client
@@ -327,7 +327,7 @@ export async function updateAdminCustomizer(
   edit: AdminCustomizerEdit,
   stored: Pick<AdminCustomizerDetail, "parts" | "colours">,
 ): Promise<AdminCustomizerDetail> {
-  const client = getSupabaseClient();
+  const client = getAdminSupabaseClient();
 
   const { data, error } = await client
     .from("customization_configs")
