@@ -18,6 +18,7 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
   shipped: "Shipped",
   out_for_delivery: "Out for delivery",
   delivered: "Delivered",
+  cancelled: "Cancelled",
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

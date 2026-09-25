@@ -212,7 +212,7 @@ export interface LocationState {
 export type PaymentMethodId = "card" | "netbanking" | "wallets" | "upi" | "cod";
 export type UpiAppId = "gpay" | "phonepe" | "paytm";
 
-export type OrderStatus = "confirmed" | "shipped" | "out_for_delivery" | "delivered";
+export type OrderStatus = "confirmed" | "shipped" | "out_for_delivery" | "delivered" | "cancelled";
 
 /** One product line of a placed order — a snapshot, so later catalogue changes don't alter it. */
 /** A part/colour choice as it was when the order was placed (names kept). */
@@ -243,8 +243,10 @@ export interface Order {
   /** e.g. "OD1789812345678" (Figma order ids look like "OD99997989899"). */
   id: string;
   createdAt: string;
-  /** V1 orders are always "confirmed"; later states drive the progress tracker. */
+  /** Drives the progress tracker; "cancelled" is its own end state, not a delivery step. */
   status: OrderStatus;
+  /** When the customer cancelled it (cancel_order()); null if it isn't cancelled or the time isn't known. */
+  cancelledAt: string | null;
   lines: OrderLine[];
   address: Address;
   payment: { method: "upi"; app: UpiAppId };

@@ -4,7 +4,8 @@ import { ensureGuestSession } from "@/lib/supabase/guestSession";
 /*
  * The current (anonymous guest) user's notifications in Supabase
  * (public.notifications). They are created by place_order() ("Order
- * confirmed", one per order); the user can only mark them read (read_at).
+ * confirmed") and cancel_order() ("Order cancelled"), so an order can have
+ * two; the user can only mark them read (read_at).
  * Errors are thrown as-is — never replaced with local data.
  */
 

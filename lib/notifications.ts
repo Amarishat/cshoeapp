@@ -2,10 +2,13 @@ import { formatEventDate } from "@/lib/orders";
 
 /**
  * A notification row as the Notifications screen shows it. Notifications are
- * stored in Supabase (created by place_order(), one per order); `orderId` is
- * the related order number, used for the link to the order.
+ * stored in Supabase (created by place_order() and cancel_order(), so an order
+ * can have more than one); `orderId` is the related order number, used for
+ * the link to the order.
  */
 export interface OrderNotification {
+  /** The notification's own id — an order can have several (confirmed, then cancelled). */
+  id: string;
   orderId: string;
   createdAt: string;
   title: string;

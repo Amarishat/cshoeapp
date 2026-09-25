@@ -25,6 +25,7 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
   shipped: "Shipped",
   out_for_delivery: "Out for delivery",
   delivered: "Delivered",
+  cancelled: "Cancelled",
 };
 
 /** "All", then the four real statuses. Nothing here can change an order's status. */

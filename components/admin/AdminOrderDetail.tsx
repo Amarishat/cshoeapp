@@ -22,10 +22,14 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
   shipped: "Shipped",
   out_for_delivery: "Out for delivery",
   delivered: "Delivered",
+  cancelled: "Cancelled",
 };
 
-/** The four values public.order_status already allows, in the order they happen. */
-const STATUS_ORDER: OrderStatus[] = ["confirmed", "shipped", "out_for_delivery", "delivered"];
+/**
+ * Every value public.order_status allows: the four delivery steps in the order
+ * they happen, then "cancelled" (012), which ends an order off that path.
+ */
+const STATUS_ORDER: OrderStatus[] = ["confirmed", "shipped", "out_for_delivery", "delivered", "cancelled"];
 
 /** The label shown in the dropdown, back to the value stored in the column. */
 const STATUS_BY_LABEL = new Map(STATUS_ORDER.map((status) => [STATUS_LABEL[status], status]));

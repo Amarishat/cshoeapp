@@ -1,17 +1,35 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ComingSoonBadge } from "@/components/ui/ComingSoonBadge";
-import { arrivingByLabel, orderProgress } from "@/lib/orders";
+import { cn } from "@/lib/cn";
+import { arrivingByLabel, cancelledLabel, orderProgress } from "@/lib/orders";
 import type { Order } from "@/lib/types";
 import { OrderProgress } from "./OrderProgress";
 
+const button = "flex h-11 items-center justify-center rounded-[7px] text-[15px] font-medium";
+
 /**
- * In-progress order (Figma 1:3672 – 1:3703): tracker, primary item (first
- * line) with "+N more items", arrival estimate, and Cancel / View Order.
+ * One order (Figma 1:3672 – 1:3703): tracker, primary item (first line) with
+ * "+N more items", arrival estimate, and Cancel / View Order. Cancel is a real
+ * action only while the order is "confirmed" (`onCancel`, which asks for
+ * confirmation first); a cancelled order shows when it was cancelled instead
+ * of an arrival date, and only View Order.
  */
-export function OrderCard({ order }: { order: Order }) {
+export function OrderCard({
+  order,
+  onCancel,
+  cancelling = false,
+  cancelError,
+}: {
+  order: Order;
+  onCancel?: () => void;
+  cancelling?: boolean;
+  /** Why the last cancel attempt failed, shown under the buttons. */
+  cancelError?: string;
+}) {
   const [first, ...rest] = order.lines;
   const size = first.size.replace(/^UK /, "");
+  const cancelled = order.status === "cancelled";
+  const cancellable = order.status === "confirmed";
 
   return (
     <article aria-label={`Order ${order.id}`}>
@@ -31,7 +49,7 @@ export function OrderCard({ order }: { order: Order }) {
           />
         </div>
         <div className="min-w-0">
-          <h3 className="text-[17px] font-semibold">In Progress Order</h3>
+          <h3 className="text-[17px] font-semibold">{cancelled ? "Cancelled Order" : "In Progress Order"}</h3>
           <p className="mt-px truncate text-secondary font-medium text-ink/30">{first.name}</p>
           {rest.length > 0 && (
             <p className="text-[14px] font-medium text-ink/50">
@@ -39,26 +57,46 @@ export function OrderCard({ order }: { order: Order }) {
             </p>
           )}
           <p className="mt-[3px] text-[15px] font-medium text-ink/90">Size : {size}</p>
-          <p className="mt-[3px] text-secondary font-medium text-success">{arrivingByLabel(order.createdAt)}</p>
+          {cancelled ? (
+            <p className="mt-[3px] text-secondary font-medium text-danger">{cancelledLabel(order)}</p>
+          ) : (
+            <p className="mt-[3px] text-secondary font-medium text-success">{arrivingByLabel(order.createdAt)}</p>
+          )}
         </div>
       </div>
 
       <div className="mt-10 grid grid-cols-2 gap-[30px]">
-        {/* Cancel stays visible to match Figma but isn't available in V1. */}
-        <div
-          aria-disabled="true"
-          className="flex h-11 items-center justify-center gap-2 rounded-[7px] border border-border bg-white text-[15px] font-medium text-ink/40"
-        >
-          Cancel
-          <ComingSoonBadge />
-        </div>
+        {cancellable && onCancel ? (
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={cancelling}
+            aria-label={`Cancel order ${order.id}`}
+            className={cn(button, "border border-border bg-white disabled:text-ink/40")}
+          >
+            {cancelling ? "Cancelling…" : "Cancel"}
+          </button>
+        ) : (
+          !cancelled && (
+            // Past "confirmed" the order has shipped and can no longer be cancelled.
+            <div aria-disabled="true" className={cn(button, "border border-border bg-white text-ink/40")}>
+              Cancel
+              <span className="sr-only"> (not available once an order has shipped)</span>
+            </div>
+          )
+        )}
         <Link
           href={`/orders/${order.id}`}
-          className="flex h-11 items-center justify-center rounded-[7px] bg-primary text-[15px] font-medium text-white"
+          className={cn(button, "bg-primary text-white", cancelled && "col-span-2")}
         >
           View Order
         </Link>
       </div>
+      {cancelError && (
+        <p role="alert" className="mt-3 text-[15px] text-danger [overflow-wrap:anywhere]">
+          {cancelError}
+        </p>
+      )}
     </article>
   );
 }

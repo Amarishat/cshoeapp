@@ -8,6 +8,7 @@ import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { ButtonLink } from "@/components/ui/Button";
 import { ComingSoonBadge } from "@/components/ui/ComingSoonBadge";
 import { Icon } from "@/components/ui/Icon";
+import { cn } from "@/lib/cn";
 import { upiApps } from "@/lib/data/paymentMethods";
 import { getOrderByNumber } from "@/lib/data/userOrders";
 import {
@@ -184,7 +185,9 @@ function Details({ order }: { order: Order }) {
 
         {/* Status, arrival and every line of this order */}
         <div className="px-gutter pt-6 pb-[21px]">
-          <p className="text-[17px] font-medium text-[#fba627]">{status.label}</p>
+          <p className={cn("text-[17px] font-medium", status.cancelled ? "text-danger" : "text-[#fba627]")}>
+            {status.label}
+          </p>
           {status.showArrival && <p className="mt-1 text-[17px]">{arrivingByLabel(order.createdAt)}</p>}
           <ul aria-label="Items" className="mt-4 divide-y divide-[#d9d9d9]">
             {order.lines.map((line) => (
@@ -195,13 +198,16 @@ function Details({ order }: { order: Order }) {
       </section>
 
       {/* Tracker */}
-      <section aria-label="Delivery progress" className="border-t border-[#d9d9d9] px-gutter pt-6">
+      <section
+        aria-label={status.cancelled ? "Order progress" : "Delivery progress"}
+        className="border-t border-[#d9d9d9] px-gutter pt-6"
+      >
         <OrderTimeline steps={orderDetailProgress(order, formatDeliveryDay(order.createdAt))} />
         <Link
           href={`/orders/${encodeURIComponent(order.id)}/track`}
           className="mt-[30px] flex w-fit items-center gap-2 text-[17px] font-medium"
         >
-          View Delivery Status
+          {status.cancelled ? "View Order Status" : "View Delivery Status"}
           <Icon name="chevronDown" className="size-5 -rotate-90" />
         </Link>
       </section>

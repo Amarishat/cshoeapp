@@ -7,7 +7,9 @@ import type { AddressType, CustomizationSelection, Order, OrderStatus, UpiAppId 
  * only by the database function public.place_order(), which prices the
  * selected Bag rows, creates the order, its items, their customisation
  * snapshots and the "Order confirmed" notification, and deletes the ordered
- * Bag rows — all in one transaction. Nothing is written from here directly.
+ * Bag rows — all in one transaction. The only other write is cancelling, also
+ * through a database function (public.cancel_order()). Nothing is written to
+ * the order tables from here directly.
  */
 
 export class OrderError extends Error {
@@ -43,6 +45,7 @@ interface OrderRow {
   order_number: string;
   created_at: string;
   status: OrderStatus;
+  cancelled_at: string | null;
   address_id: string | null;
   ship_full_name: string;
   ship_phone: string;
@@ -75,7 +78,7 @@ interface OrderRow {
 }
 
 const ORDER_COLUMNS =
-  "id, order_number, created_at, status, address_id, ship_full_name, ship_phone, ship_pincode, " +
+  "id, order_number, created_at, status, cancelled_at, address_id, ship_full_name, ship_phone, ship_pincode, " +
   "ship_state, ship_city, ship_area, ship_street, ship_type, payment_method, upi_app, " +
   "subtotal, discount, delivery_fee, platform_fee, total, " +
   "order_items(id, product_id, product_name, product_category, image_url, image_fit, size_uk, " +
@@ -90,6 +93,7 @@ function toOrder(row: OrderRow): Order {
     id: row.order_number,
     createdAt: row.created_at,
     status: row.status,
+    cancelledAt: row.cancelled_at,
     lines: row.order_items.map((item) => {
       const customization: CustomizationSelection = Object.fromEntries(
         item.order_item_customizations.map((c) => [c.part_id, c.colour_id]),
@@ -174,4 +178,37 @@ export async function listOrders(): Promise<Order[]> {
     .overrideTypes<OrderRow[], { merge: false }>();
   if (error) throw new OrderError("load your orders", error);
   return data.filter((row) => row.order_items.length > 0).map(toOrder);
+}
+
+/** What public.cancel_order() returns: one row with the order's new state. */
+interface CancelledOrderRow {
+  order_number: string;
+  status: OrderStatus;
+}
+
+/**
+ * Cancels one of the guest's orders through the database function
+ * public.cancel_order(), which only allows it while the order is still
+ * "confirmed" (not yet shipped), and creates the "Order cancelled"
+ * notification. Throws if the database refused or the request failed; in
+ * that case nothing changed.
+ */
+export async function cancelOrder(orderNumber: string): Promise<void> {
+  await ensureGuestSession();
+  const { data, error } = await getSupabaseClient().rpc("cancel_order", { p_order_number: orderNumber });
+  if (error) {
+    // The function's own refusals, in plain words; anything else as it came.
+    const message =
+      error.code === "55000"
+        ? "it has already shipped. Only an order that hasn’t shipped yet can be cancelled"
+        : error.code === "P0002"
+          ? "this order wasn’t found"
+          : error.message;
+    throw new OrderError("cancel this order", { message, code: error.code });
+  }
+  // A set-returning function comes back as an array of rows.
+  const rows = (data ?? []) as CancelledOrderRow[];
+  if (rows[0]?.status !== "cancelled") {
+    throw new OrderError("cancel this order", { message: "the order wasn’t cancelled" });
+  }
 }

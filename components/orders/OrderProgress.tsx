@@ -3,7 +3,9 @@ import { cn } from "@/lib/cn";
 import type { ProgressStep } from "@/lib/orders";
 
 // Step centres as % of the 390px content width (Figma: 68.5 / 204.5 / 340.5px).
-const centres = [17.56, 52.44, 87.31];
+const THREE_STEPS = [17.56, 52.44, 87.31];
+// Two steps (a cancelled order: confirmed → cancelled) use the outer two.
+const TWO_STEPS = [17.56, 87.31];
 
 /**
  * Horizontal order tracker (Figma 1:3672): 25px circles — done = black with a
@@ -11,6 +13,7 @@ const centres = [17.56, 52.44, 87.31];
  * Labels Regular 14; dates Regular 14 at 50%. Steps are data-driven.
  */
 export function OrderProgress({ steps }: { steps: ProgressStep[] }) {
+  const centres = steps.length === 2 ? TWO_STEPS : THREE_STEPS;
   return (
     <ol aria-label="Order progress" className="relative h-[66px]">
       {steps.slice(0, -1).map((_, i) => (

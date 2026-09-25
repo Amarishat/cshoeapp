@@ -16,8 +16,8 @@ import { NotificationItem } from "./NotificationItem";
 
 /**
  * Notifications — Figma 1:6944 (default) / 1:6867 (unread highlight). The
- * guest's notifications from Supabase ("Order confirmed", created with each
- * order), grouped by day; unread = no read_at. Figma's marketing
+ * guest's notifications from Supabase ("Order confirmed" with each order,
+ * "Order cancelled" when one is cancelled), grouped by day; unread = no read_at. Figma's marketing
  * notifications are not used.
  */
 export function NotificationsView() {
@@ -32,10 +32,12 @@ export function NotificationsView() {
   const rows = ready ? state.data.filter((n): n is UserNotification & { orderNumber: string } => !!n.orderNumber) : [];
   const isUnread = (n: UserNotification) => n.readAt === null && !readNow.has(n.id);
   const unread = rows.filter(isUnread);
-  // One notification per order, so the order number identifies it within the list.
-  const byOrder = new Map(rows.map((n) => [n.orderNumber, n]));
+  // An order can have several notifications (confirmed, then cancelled), so they're matched by id.
+  const byId = new Map(rows.map((n) => [n.id, n]));
   const days = groupByDay(
-    rows.map((n): OrderNotification => ({ orderId: n.orderNumber, createdAt: n.createdAt, title: n.title, body: n.body })),
+    rows.map(
+      (n): OrderNotification => ({ id: n.id, orderId: n.orderNumber, createdAt: n.createdAt, title: n.title, body: n.body }),
+    ),
   );
 
   function open(n: UserNotification) {
@@ -126,7 +128,7 @@ export function NotificationsView() {
                 </h2>
                 <ul className={i > 0 ? "-mx-gutter" : undefined}>
                   {day.items.map((item) => {
-                    const n = byOrder.get(item.orderId)!;
+                    const n = byId.get(item.id)!;
                     return (
                       <li key={n.id}>
                         <NotificationItem notification={item} unread={isUnread(n)} onOpen={() => open(n)} />

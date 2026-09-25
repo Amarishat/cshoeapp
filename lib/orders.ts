@@ -64,18 +64,33 @@ export interface ProgressStep {
   date?: string;
 }
 
-export const statusRank: Record<OrderStatus, number> = {
+/** The statuses on the way to delivery; "cancelled" is an end state off that path. */
+export type DeliveryStatus = Exclude<OrderStatus, "cancelled">;
+
+export const statusRank: Record<DeliveryStatus, number> = {
   confirmed: 0,
   shipped: 1,
   out_for_delivery: 2,
   delivered: 3,
 };
 
+/** "Cancelled on 19 Sep 2026", or just "Cancelled" when the time isn't known. */
+export function cancelledLabel(order: Order): string {
+  return order.cancelledAt ? `Cancelled on ${formatEventDate(order.cancelledAt)}` : "Cancelled";
+}
+
 /**
- * Tracker steps for an order, derived from its status. V1 orders are always
- * "confirmed"; shipped/delivered dates will come from real tracking later.
+ * Tracker steps for an order, derived from its status. A cancelled order
+ * shows confirmed → cancelled instead of the delivery steps; shipped and
+ * delivered dates will come from real tracking later.
  */
 export function orderProgress(order: Order): ProgressStep[] {
+  if (order.status === "cancelled") {
+    return [
+      { label: "Order Confirmed", done: true, date: formatOrderDate(order.createdAt) },
+      { label: "Cancelled", done: true, date: order.cancelledAt ? formatOrderDate(order.cancelledAt) : undefined },
+    ];
+  }
   const rank = statusRank[order.status];
   return [
     { label: "Order Confirmed", done: true, date: formatOrderDate(order.createdAt) },
@@ -90,25 +105,40 @@ export function formatShortOrderDate(iso: string): string {
 }
 
 /**
- * Status-specific content for Order Details. V1 only has "confirmed"; the
- * completed (delivered) variant from Figma 1:3715 can be added here later.
+ * Status-specific content for Order Details. A cancelled order has no arrival
+ * date; the completed (delivered) variant from Figma 1:3715 can be added here
+ * later.
  */
-export function orderStatusView(order: Order) {
+export function orderStatusView(order: Order): {
+  sectionTitle: string;
+  label: string;
+  showArrival: boolean;
+  cancelled: boolean;
+} {
   switch (order.status) {
+    case "cancelled":
+      return { sectionTitle: "Cancelled Order", label: cancelledLabel(order), showArrival: false, cancelled: true };
     case "confirmed":
     case "shipped":
     case "out_for_delivery":
     case "delivered":
-      return { sectionTitle: "In Progress Orders", label: "In Progress", showArrival: true };
+      return { sectionTitle: "In Progress Orders", label: "In Progress", showArrival: true, cancelled: false };
   }
 }
 
-/** Vertical tracker steps for Order Details (Figma 1:3892). */
+/** Vertical tracker steps for Order Details (Figma 1:3892); confirmed → cancelled for a cancelled order. */
 export function orderDetailProgress(order: Order, expectedDelivery: string): ProgressStep[] {
-  const rank = statusRank[order.status];
   const steps: ProgressStep[] = [
     { label: `Order Confirmed, ${formatShortOrderDate(order.createdAt)}`, done: true },
   ];
+  if (order.status === "cancelled") {
+    steps.push({
+      label: order.cancelledAt ? `Cancelled, ${formatShortOrderDate(order.cancelledAt)}` : "Cancelled",
+      done: true,
+    });
+    return steps;
+  }
+  const rank = statusRank[order.status];
   if (rank >= statusRank.shipped) steps.push({ label: "Shipped", done: true });
   steps.push({ label: `Expected Delivery, ${expectedDelivery}`, done: rank >= statusRank.delivered });
   return steps;
@@ -134,7 +164,7 @@ export interface TrackEvent {
 }
 
 export interface TrackStep {
-  key: "confirmed" | "shipped" | "out_for_delivery" | "delivery";
+  key: "confirmed" | "shipped" | "out_for_delivery" | "delivery" | "cancelled";
   title: string;
   date?: string;
   events: TrackEvent[];
@@ -146,18 +176,34 @@ export interface TrackStep {
  * data we actually have is shown: the confirmation date/time from createdAt
  * and the fixed expected delivery date. Later statuses mark their steps done;
  * their dates and events will come from real tracking data in a future phase.
+ * A cancelled order shows its confirmation and then the cancellation, with no
+ * delivery steps.
  */
 export function trackTimeline(order: Order, expectedDelivery: string): TrackStep[] {
+  const confirmed: TrackStep = {
+    key: "confirmed",
+    title: "Order Confirmed",
+    date: formatTrackDate(order.createdAt),
+    events: [{ message: "Your Order has been placed.", time: formatTrackTimestamp(order.createdAt) }],
+    done: true,
+  };
+  if (order.status === "cancelled") {
+    const at = order.cancelledAt;
+    return [
+      confirmed,
+      {
+        key: "cancelled",
+        title: "Order Cancelled",
+        date: at ? formatTrackDate(at) : undefined,
+        events: at ? [{ message: "Your Order has been cancelled.", time: formatTrackTimestamp(at) }] : [],
+        done: true,
+      },
+    ];
+  }
   const rank = statusRank[order.status];
   const delivered = rank >= statusRank.delivered;
   return [
-    {
-      key: "confirmed",
-      title: "Order Confirmed",
-      date: formatTrackDate(order.createdAt),
-      events: [{ message: "Your Order has been placed.", time: formatTrackTimestamp(order.createdAt) }],
-      done: true,
-    },
+    confirmed,
     { key: "shipped", title: "Shipped", events: [], done: rank >= statusRank.shipped },
     {
       key: "out_for_delivery",
@@ -201,6 +247,7 @@ export function orderSummaryText(order: Order): string {
   return [
     `Custom Stride order ${order.id}`,
     `Placed on ${date}`,
+    ...(order.status === "cancelled" ? [cancelledLabel(order)] : []),
     "",
     "Items:",
     ...lines,
