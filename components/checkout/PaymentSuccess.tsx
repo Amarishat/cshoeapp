@@ -71,7 +71,8 @@ export function PaymentSuccess({ orderNumber }: { orderNumber: string | null }) 
         {(
           [
             ["Order ID", order.id],
-            ["Amount Paid", formatPrice(order.totals.total)],
+            // What was paid at checkout — not the current total, which item edits can change.
+            ["Amount Paid", order.amountPaid === null ? "—" : formatPrice(order.amountPaid)],
             ["Arriving by", formatDeliveryDate(order.createdAt)],
           ] as const
         ).map(([label, value]) => (

@@ -250,6 +250,12 @@ export interface Order {
   lines: OrderLine[];
   address: Address;
   payment: { method: "upi"; app: UpiAppId };
+  /**
+   * What was paid at checkout (orders.amount_paid): the total when the order
+   * was placed. Unlike totals.total it never changes when items are edited.
+   * null only if it isn't recorded yet.
+   */
+  amountPaid: number | null;
   totals: {
     subtotal: number;
     discount: number;

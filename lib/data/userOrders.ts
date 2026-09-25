@@ -62,6 +62,8 @@ interface OrderRow {
   delivery_fee: number;
   platform_fee: number;
   total: number;
+  /** numeric in the database; may arrive as a string. */
+  amount_paid: number | string | null;
   order_items: {
     id: string;
     product_id: string | null;
@@ -80,7 +82,7 @@ interface OrderRow {
 const ORDER_COLUMNS =
   "id, order_number, created_at, status, cancelled_at, address_id, ship_full_name, ship_phone, ship_pincode, " +
   "ship_state, ship_city, ship_area, ship_street, ship_type, payment_method, upi_app, " +
-  "subtotal, discount, delivery_fee, platform_fee, total, " +
+  "subtotal, discount, delivery_fee, platform_fee, total, amount_paid, " +
   "order_items(id, product_id, product_name, product_category, image_url, image_fit, size_uk, " +
   "quantity, unit_price, is_customized, order_item_customizations(part_id, part_name, colour_id, colour_name))";
 
@@ -134,6 +136,7 @@ function toOrder(row: OrderRow): Order {
       isDefault: false,
     },
     payment: { method: "upi", app: row.upi_app },
+    amountPaid: row.amount_paid === null ? null : Number(row.amount_paid),
     totals: {
       subtotal: row.subtotal,
       discount: row.discount,

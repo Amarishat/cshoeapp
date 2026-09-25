@@ -340,9 +340,30 @@ function Details({
             <dd className="font-semibold">{formatAmount(totals.total)}</dd>
           </div>
         </dl>
-        <p className="mt-4 px-gutter text-[15px] text-ink/70">
-          Paid via {app?.name ?? order.payment.app} (UPI)
-        </p>
+        {/* What was paid at checkout, kept apart from the current total above (which item edits can change). */}
+        {order.amountPaid === null ? (
+          <p className="mt-4 px-gutter text-[15px] text-ink/70">
+            Payment method: {app?.name ?? order.payment.app} (UPI)
+          </p>
+        ) : order.amountPaid === totals.total ? (
+          <p className="mt-4 px-gutter text-[15px] text-ink/70">
+            Paid {formatAmount(order.amountPaid)} via {app?.name ?? order.payment.app} (UPI)
+          </p>
+        ) : (
+          <div className="mt-4 px-gutter text-[15px] text-ink/70">
+            <dl className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <dt>Amount Paid</dt>
+                <dd className="font-medium text-ink">{formatAmount(order.amountPaid)}</dd>
+              </div>
+              <div className="flex items-center justify-between">
+                <dt>Payment Method</dt>
+                <dd className="font-medium text-ink">{app?.name ?? order.payment.app} (UPI)</dd>
+              </div>
+            </dl>
+            <p className="mt-3">Order total changed after payment.</p>
+          </div>
+        )}
       </section>
     </div>
   );
