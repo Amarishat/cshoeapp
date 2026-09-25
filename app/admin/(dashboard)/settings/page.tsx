@@ -21,7 +21,7 @@ const rows: SettingRow[] = [
     label: "Admin authentication",
     value: "Supabase Auth",
     detail:
-      "Email and password at /admin/login, using the app’s Supabase client. Customers never sign in; they browse as anonymous guests.",
+      "Email and password at /admin/login, through a dedicated admin Supabase client that keeps its session in its own storage. Customers never sign in; they browse as anonymous guests, and the two sessions are kept apart, so signing in here never changes the storefront’s guest. Access is still decided by Supabase Auth plus the admin role and row level security.",
   },
   {
     label: "Access control",
@@ -43,10 +43,9 @@ const rows: SettingRow[] = [
   },
   {
     label: "Order status editing",
-    value: "Not available yet",
+    value: "Admins only",
     detail:
-      "public.orders is insert-only: there is no update privilege or admin update policy, so order status can’t be changed from here.",
-    comingSoon: true,
+      "Admins can update orders through the order details page using the supported order statuses: Confirmed, Shipped, Out for delivery and Delivered. Only the status can be changed, and only by an admin.",
   },
 ];
 
