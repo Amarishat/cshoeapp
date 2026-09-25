@@ -247,6 +247,12 @@ export interface Order {
   status: OrderStatus;
   /** When the customer cancelled it (cancel_order()); null if it isn't cancelled or the time isn't known. */
   cancelledAt: string | null;
+  /** When it entered "shipped" (020); null if it hasn't, or if the time wasn't recorded. */
+  shippedAt: string | null;
+  /** When it entered "out_for_delivery" (020); null if it hasn't, or if the time wasn't recorded. */
+  outForDeliveryAt: string | null;
+  /** When it entered "delivered" (020); null if it hasn't, or if the time wasn't recorded. */
+  deliveredAt: string | null;
   lines: OrderLine[];
   address: Address;
   payment: { method: "upi"; app: UpiAppId };

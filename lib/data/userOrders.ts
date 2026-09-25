@@ -46,6 +46,9 @@ interface OrderRow {
   created_at: string;
   status: OrderStatus;
   cancelled_at: string | null;
+  shipped_at: string | null;
+  out_for_delivery_at: string | null;
+  delivered_at: string | null;
   address_id: string | null;
   ship_full_name: string;
   ship_phone: string;
@@ -80,7 +83,7 @@ interface OrderRow {
 }
 
 const ORDER_COLUMNS =
-  "id, order_number, created_at, status, cancelled_at, address_id, ship_full_name, ship_phone, ship_pincode, " +
+  "id, order_number, created_at, status, cancelled_at, shipped_at, out_for_delivery_at, delivered_at, address_id, ship_full_name, ship_phone, ship_pincode, " +
   "ship_state, ship_city, ship_area, ship_street, ship_type, payment_method, upi_app, " +
   "subtotal, discount, delivery_fee, platform_fee, total, amount_paid, " +
   "order_items(id, product_id, product_name, product_category, image_url, image_fit, size_uk, " +
@@ -96,6 +99,9 @@ function toOrder(row: OrderRow): Order {
     createdAt: row.created_at,
     status: row.status,
     cancelledAt: row.cancelled_at,
+    shippedAt: row.shipped_at,
+    outForDeliveryAt: row.out_for_delivery_at,
+    deliveredAt: row.delivered_at,
     lines: row.order_items.map((item) => {
       const customization: CustomizationSelection = Object.fromEntries(
         item.order_item_customizations.map((c) => [c.part_id, c.colour_id]),

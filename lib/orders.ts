@@ -79,12 +79,22 @@ export function cancelledLabel(order: Order): string {
   return order.cancelledAt ? `Cancelled on ${formatEventDate(order.cancelledAt)}` : "Cancelled";
 }
 
+/** A recorded stage time as the trackers' date, e.g. "19 Sep 2026"; nothing when it wasn't recorded. */
+function dateOf(iso: string | null): string | undefined {
+  return iso ? formatOrderDate(iso) : undefined;
+}
+
+/** "Shipped, 19 Sep 2026" when the time was recorded, otherwise just "Shipped". */
+function withDate(label: string, iso: string | null): string {
+  return iso ? `${label}, ${formatShortOrderDate(iso)}` : label;
+}
+
 /**
  * Tracker steps for an order (My Orders card), derived from its status. A
  * cancelled order shows confirmed → cancelled instead of the delivery steps.
  * The middle step reads "Out for Delivery" once the order is out for
- * delivery, so it's told apart from just shipped. Shipped and delivered dates
- * will come from real tracking later.
+ * delivery, so it's told apart from just shipped. Each stage shows the date
+ * it was reached when that was recorded (020); older orders show none.
  */
 export function orderProgress(order: Order): ProgressStep[] {
   if (order.status === "cancelled") {
@@ -96,11 +106,10 @@ export function orderProgress(order: Order): ProgressStep[] {
   const rank = statusRank[order.status];
   return [
     { label: "Order Confirmed", done: true, date: formatOrderDate(order.createdAt) },
-    {
-      label: order.status === "out_for_delivery" ? "Out for Delivery" : "Shipped",
-      done: rank >= statusRank.shipped,
-    },
-    { label: "Delivered", done: rank >= statusRank.delivered },
+    order.status === "out_for_delivery"
+      ? { label: "Out for Delivery", done: true, date: dateOf(order.outForDeliveryAt) }
+      : { label: "Shipped", done: rank >= statusRank.shipped, date: dateOf(order.shippedAt) },
+    { label: "Delivered", done: rank >= statusRank.delivered, date: dateOf(order.deliveredAt) },
   ];
 }
 
@@ -116,8 +125,8 @@ export type OrderStatusTone = "progress" | "delivered" | "cancelled";
  * Status-specific content for Order Details and the My Orders card.
  * Confirmed keeps the V1 "In Progress" wording; shipped and out for delivery
  * name their stage; delivered is the completed variant from Figma 1:3715
- * ("Completed Orders", "Delivered", no arrival date — there is no stored
- * delivery date, so none is shown); cancelled has no arrival date either.
+ * ("Completed Orders", "Delivered on <date>" — just "Delivered" when the time
+ * wasn't recorded — and no arrival date); cancelled has no arrival date either.
  */
 export function orderStatusView(order: Order): {
   sectionTitle: string;
@@ -137,7 +146,14 @@ export function orderStatusView(order: Order): {
         tone: "cancelled",
       };
     case "delivered":
-      return { sectionTitle: "Completed Orders", label: "Delivered", showArrival: false, cancelled: false, tone: "delivered" };
+      return {
+        sectionTitle: "Completed Orders",
+        // "Delivered on 25 Sep 2026" (Figma 1:3715) when the time was recorded.
+        label: order.deliveredAt ? `Delivered on ${formatEventDate(order.deliveredAt)}` : "Delivered",
+        showArrival: false,
+        cancelled: false,
+        tone: "delivered",
+      };
     case "out_for_delivery":
       return { ...inProgress, label: "Out for delivery" };
     case "shipped":
@@ -165,12 +181,14 @@ export function orderDetailProgress(order: Order, expectedDelivery: string): Pro
     return steps;
   }
   if (order.status === "delivered") {
-    steps.push({ label: "Delivered", done: true });
+    steps.push({ label: withDate("Delivered", order.deliveredAt), done: true });
     return steps;
   }
   const rank = statusRank[order.status];
-  if (rank >= statusRank.shipped) steps.push({ label: "Shipped", done: true });
-  if (rank >= statusRank.out_for_delivery) steps.push({ label: "Out for delivery", done: true });
+  if (rank >= statusRank.shipped) steps.push({ label: withDate("Shipped", order.shippedAt), done: true });
+  if (rank >= statusRank.out_for_delivery) {
+    steps.push({ label: withDate("Out for delivery", order.outForDeliveryAt), done: true });
+  }
   steps.push({ label: `Expected Delivery, ${expectedDelivery}`, done: false });
   return steps;
 }
@@ -205,8 +223,9 @@ export interface TrackStep {
 /**
  * Track Order timeline (Figma 1:4176 / 1:4232), driven by order.status. Only
  * data we actually have is shown: the confirmation date/time from createdAt
- * and the fixed expected delivery date. Later statuses mark their steps done;
- * their dates and events will come from real tracking data in a future phase.
+ * and the fixed expected delivery date. Later statuses mark their steps done,
+ * with the date and an event when the time was recorded (020); older orders
+ * show the step without them.
  * A cancelled order shows its confirmation and then the cancellation, with no
  * delivery steps.
  */
@@ -233,22 +252,33 @@ export function trackTimeline(order: Order, expectedDelivery: string): TrackStep
   }
   const rank = statusRank[order.status];
   const delivered = rank >= statusRank.delivered;
+  // A reached stage with a recorded time (020) shows its date and an event, like "Order Confirmed".
+  const reached = (at: string | null, message: string) => ({
+    date: at ? formatTrackDate(at) : undefined,
+    events: at ? [{ message, time: formatTrackTimestamp(at) }] : [],
+  });
   return [
     confirmed,
-    { key: "shipped", title: "Shipped", events: [], done: rank >= statusRank.shipped },
+    {
+      key: "shipped",
+      title: "Shipped",
+      ...reached(order.shippedAt, "Your Order has been shipped."),
+      done: rank >= statusRank.shipped,
+    },
     {
       key: "out_for_delivery",
       title: "Out For Delivery",
-      events: [],
+      ...reached(order.outForDeliveryAt, "Your Order is out for delivery."),
       done: rank >= statusRank.out_for_delivery,
     },
-    {
-      key: "delivery",
-      title: delivered ? "Delivered" : "Delivery Expected By",
-      date: delivered ? undefined : expectedDelivery,
-      events: [],
-      done: delivered,
-    },
+    delivered
+      ? {
+          key: "delivery",
+          title: "Delivered",
+          ...reached(order.deliveredAt, "Your Order has been delivered."),
+          done: true,
+        }
+      : { key: "delivery", title: "Delivery Expected By", date: expectedDelivery, events: [], done: false },
   ];
 }
 
