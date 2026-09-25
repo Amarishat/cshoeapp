@@ -1,3 +1,4 @@
+import { hasCustomizerPage } from "@/lib/data/customizerPages";
 import { getProductBySlug, getProducts } from "@/lib/data/supabaseCatalog";
 import type { ProductDetail } from "@/lib/types";
 
@@ -87,6 +88,7 @@ export async function loadProductPage(slug: string): Promise<ProductPageData | n
       details: p.details,
       reviews: p.reviews,
     },
-    customisable: p.customizable,
+    // Marked customisable and with a built customiser page; otherwise the pill is Coming Soon (never a 404 link).
+    customisable: p.customizable && hasCustomizerPage(p.slug),
   };
 }

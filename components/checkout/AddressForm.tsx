@@ -6,7 +6,8 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { SelectField } from "@/components/ui/SelectField";
 import { TextField } from "@/components/ui/TextField";
 import type { AddressErrors } from "@/lib/validation/address";
-import type { AddressInput, AddressType, LocationState } from "@/lib/types";
+import { INDIA_STATES } from "@/lib/data/locations";
+import type { AddressInput, AddressType } from "@/lib/types";
 
 export const emptyAddress: AddressInput = {
   fullName: "",
@@ -29,7 +30,8 @@ const types: { value: AddressType; label: string }[] = [
 /**
  * "Add Shipping Address" form (Figma 1:3402 and 1:3447): labelled 50px fields,
  * two-column Pincode/State and City/Area rows, "Type of Address" radios and
- * "Make as default address".
+ * "Make as default address". State is chosen from India's states and UTs;
+ * City and Area are typed (Figma's dropdown look is kept for State only).
  */
 export const AddressForm = forwardRef<
   HTMLDivElement,
@@ -37,12 +39,9 @@ export const AddressForm = forwardRef<
     value: AddressInput;
     onChange: (value: AddressInput) => void;
     errors: AddressErrors;
-    locations: LocationState[];
   }
->(function AddressForm({ value, onChange, errors, locations }, ref) {
+>(function AddressForm({ value, onChange, errors }, ref) {
   const set = (patch: Partial<AddressInput>) => onChange({ ...value, ...patch });
-  const state = locations.find((s) => s.name === value.state);
-  const city = state?.cities.find((c) => c.name === value.city);
   const digits = (s: string, max: number) => s.replace(/\D/g, "").slice(0, max);
 
   return (
@@ -81,28 +80,29 @@ export const AddressForm = forwardRef<
         <SelectField
           label="State"
           placeholder="Kerala"
-          options={locations.map((s) => s.name)}
+          options={INDIA_STATES}
+          autoComplete="address-level1"
           value={value.state}
-          onChange={(e) => set({ state: e.target.value, city: "", area: "" })}
+          onChange={(e) => set({ state: e.target.value })}
           error={errors.state}
         />
       </div>
       <div className="grid grid-cols-2 gap-x-[50px]">
-        <SelectField
+        <TextField
+          size="sm"
           label="City"
           placeholder="Kozhikode"
-          options={state?.cities.map((c) => c.name) ?? []}
+          autoComplete="address-level2"
           value={value.city}
-          disabled={!state}
-          onChange={(e) => set({ city: e.target.value, area: "" })}
+          onChange={(e) => set({ city: e.target.value })}
           error={errors.city}
         />
-        <SelectField
+        <TextField
+          size="sm"
           label="Area"
           placeholder="Koyilandi"
-          options={city?.areas ?? []}
+          autoComplete="address-level3"
           value={value.area}
-          disabled={!city}
           onChange={(e) => set({ area: e.target.value })}
           error={errors.area}
         />

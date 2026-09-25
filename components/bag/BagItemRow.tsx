@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { cn } from "@/lib/cn";
+import { STALE_DESIGN_MESSAGE } from "@/lib/customizationCheck";
+import { hasCustomizerPage } from "@/lib/data/customizerPages";
 import { getCustomizationConfig } from "@/lib/data/supabaseCatalog";
 import { MAX_CART_QUANTITY } from "@/lib/data/userCart";
 import { formatPrice, isSelected } from "@/lib/pricing";
@@ -66,10 +68,13 @@ export function BagItemRow({
   onQuantityChange,
   onSelectedChange,
   onRemoveRequest,
+  stale = false,
   className,
 }: {
   item: CartItem;
   product: BagProduct;
+  /** Its design uses a part or colour the customiser no longer has (can't be ordered). */
+  stale?: boolean;
   onQuantityChange: (quantity: number) => void;
   onSelectedChange: (selected: boolean) => void;
   onRemoveRequest: () => void;
@@ -129,18 +134,26 @@ export function BagItemRow({
               height={22}
               className="h-[22px] w-6 object-cover"
             />
-            <Link
-              href={`/products/${product.slug}/customise?item=${encodeURIComponent(item.id)}`}
-              aria-label={`Edit the customisation of ${product.name}, size ${sizeLabel}`}
-              className="text-secondary font-medium text-ink/70 underline decoration-from-font underline-offset-auto"
-            >
-              Edit
-            </Link>
+            {/* Only when the customiser page exists; otherwise the label stays, with no link to a 404. */}
+            {hasCustomizerPage(product.slug) && (
+              <Link
+                href={`/products/${product.slug}/customise?item=${encodeURIComponent(item.id)}`}
+                aria-label={`Edit the customisation of ${product.name}, size ${sizeLabel}`}
+                className="text-secondary font-medium text-ink/70 underline decoration-from-font underline-offset-auto"
+              >
+                Edit
+              </Link>
+            )}
           </p>
         )}
         <h2 className={cn("truncate text-body font-medium", customised && "mt-[25px]")}>
           {product.name}
         </h2>
+        {stale && (
+          <p role="alert" className="mt-1 text-[15px] text-danger [overflow-wrap:anywhere]">
+            {STALE_DESIGN_MESSAGE}
+          </p>
+        )}
         <p className="mt-px truncate text-secondary text-ink/30">{product.category}</p>
         <p className="mt-[3px] text-[17px]">Size {sizeLabel}</p>
         <p className="mt-[5px] text-[17px]">

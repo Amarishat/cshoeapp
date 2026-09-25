@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import {
   addCartItem,
+  prepareBuyNowItem,
   listCart,
   migrateLegacyBag,
   removeCartItems,
@@ -38,6 +39,12 @@ interface BagState {
    * (they never reject). `item.id` is ignored for `add`: Supabase assigns it.
    */
   add: (item: CartItem) => Promise<string | null>;
+  /**
+   * Buy Now: puts this plain product + size in the Bag at exactly its
+   * quantity as the only selected line (see prepareBuyNowItem), so checkout
+   * orders just it. Other lines stay in the Bag, deselected.
+   */
+  buyNow: (item: CartItem) => Promise<string | null>;
   remove: (id: string) => Promise<string | null>;
   /** Removes several items at once (e.g. the ones just ordered). */
   removeItems: (ids: string[]) => Promise<string | null>;
@@ -101,6 +108,7 @@ export const useBagStore = create<BagState>()((set, get) => {
     retry: () => get().load(),
     // Merging is decided in Supabase, so reload the Bag after adding.
     add: (item) => change(() => addCartItem(item), () => listCart()),
+    buyNow: (item) => change(() => prepareBuyNowItem(item), () => listCart()),
     remove: (id) =>
       change(
         () => removeCartItems([id]),

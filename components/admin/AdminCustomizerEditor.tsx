@@ -15,6 +15,7 @@ import {
   type AdminCustomizerPartEdit,
 } from "@/lib/data/adminCustomizer";
 import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
+import { imagePathError } from "@/lib/validation/imagePath";
 
 /*
  * The customiser editor. Configuration fields, then the parts and the colours.
@@ -182,7 +183,9 @@ function EditForm({ loaded }: { loaded: Customizer }) {
   if (blank(title)) problems.push("The title can’t be empty.");
   if (blank(displayCategory)) problems.push("The display category can’t be empty.");
   if (blank(wordmark)) problems.push("The wordmark can’t be empty.");
-  if (blank(imageUrl)) problems.push("The image URL can’t be empty.");
+  // A local image path only: anything else would break next/image on the storefront.
+  const imageError = blank(imageUrl) ? "The image URL can’t be empty." : imagePathError(imageUrl.trim());
+  if (imageError) problems.push(imageError);
   if (parts.length === 0) problems.push("A customiser needs at least one part.");
   if (colours.length === 0) problems.push("A customiser needs at least one colour.");
   if (parts.some((row) => blank(row.name)) || colours.some((row) => blank(row.name)))
@@ -210,11 +213,16 @@ function EditForm({ loaded }: { loaded: Customizer }) {
     setSaved(false);
     setError("");
     try {
-      const fresh = await updateAdminCustomizer(
-        stored.productId,
-        { title, displayCategory, wordmark, imageUrl, parts, colours, removedPartIds, removedColourIds },
-        stored,
-      );
+      const fresh = await updateAdminCustomizer(stored.productId, {
+        title,
+        displayCategory,
+        wordmark,
+        imageUrl,
+        parts,
+        colours,
+        removedPartIds,
+        removedColourIds,
+      });
       setStored(fresh);
       setParts(fresh.parts.map((part) => ({ ...part, isNew: false, key: part.id })));
       setColours(fresh.colours.map((colour) => ({ ...colour, isNew: false, key: colour.id })));
@@ -286,7 +294,9 @@ function EditForm({ loaded }: { loaded: Customizer }) {
           <TextField
             label="Image URL"
             size="sm"
+            placeholder="/images/customizer/red-shoe.png"
             value={imageUrl}
+            error={imageError}
             onChange={(event) => {
               setImageUrl(event.target.value);
               touched();

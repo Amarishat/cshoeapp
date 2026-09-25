@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 
 /**
  * Small modal confirmation built on <dialog> (focus trap and Esc for free).
@@ -25,6 +25,8 @@ export function ConfirmDialog({
   onCancel: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  // Own id per dialog, so two on one screen don't share a heading id.
+  const titleId = useId();
 
   useEffect(() => {
     const dialog = ref.current;
@@ -36,7 +38,7 @@ export function ConfirmDialog({
   return (
     <dialog
       ref={ref}
-      aria-labelledby="confirm-title"
+      aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
         onCancel();
@@ -47,7 +49,7 @@ export function ConfirmDialog({
       }}
       className="m-auto w-[calc(100%-40px)] max-w-[350px] rounded-card bg-white p-6 text-ink backdrop:bg-black/40"
     >
-      <h2 id="confirm-title" className="text-body font-medium">
+      <h2 id={titleId} className="text-body font-medium">
         {title}
       </h2>
       {message && <p className="mt-2 text-secondary text-ink/70">{message}</p>}

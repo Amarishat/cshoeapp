@@ -203,12 +203,6 @@ export interface Address {
 
 export type AddressInput = Omit<Address, "id">;
 
-/** State → city → area options for the address dropdowns. */
-export interface LocationState {
-  name: string;
-  cities: { name: string; areas: string[] }[];
-}
-
 export type PaymentMethodId = "card" | "netbanking" | "wallets" | "upi" | "cod";
 export type UpiAppId = "gpay" | "phonepe" | "paytm";
 
@@ -281,4 +275,6 @@ export interface BagProduct {
   /** Current selling price in rupees. */
   price: number;
   image: { src: string; fit: "cover" | "contain" };
+  /** The product's current customiser parts and colours; absent when it has no usable customiser. */
+  customizer?: { partIds: readonly string[]; colourIds: readonly string[] };
 }

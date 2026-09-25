@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { PaymentMethodRow } from "@/components/payment/PaymentMethodRow";
@@ -9,7 +10,8 @@ import { UpiApps } from "@/components/payment/UpiApps";
 import { loadBagCatalogue } from "@/lib/data/bagCatalogue";
 import { DEFAULT_UPI_APP, paymentMethods, upiApps } from "@/lib/data/paymentMethods";
 import { listAddresses } from "@/lib/data/userAddresses";
-import { placeOrder } from "@/lib/data/userOrders";
+import { isStaleDesign } from "@/lib/customizationCheck";
+import { OrderError, placeOrder, REVIEW_BAG_CODES } from "@/lib/data/userOrders";
 import { computeBagTotals, isSelected } from "@/lib/pricing";
 import { useBagStore } from "@/lib/store/bag";
 import { useCheckoutStore } from "@/lib/store/checkout";
@@ -82,7 +84,8 @@ export function PaymentView() {
 function PaymentContents({ catalog, address }: { catalog: Record<string, BagProduct>; address: Address }) {
   const router = useRouter();
   const bagItems = useBagStore((s) => s.items);
-  const [orderError, setOrderError] = useState("");
+  // Why the last attempt failed; `reviewBag` when trying again would fail the same way.
+  const [orderError, setOrderError] = useState<{ message: string; reviewBag: boolean } | null>(null);
 
   const [upiOpen, setUpiOpen] = useState(true);
   const [upiApp, setUpiApp] = useState<UpiAppId>(DEFAULT_UPI_APP);
@@ -96,31 +99,43 @@ function PaymentContents({ catalog, address }: { catalog: Record<string, BagProd
   useEffect(() => {
     if (!orderable && !processing) router.replace("/bag");
   }, [orderable, processing, router]);
+  // A selected item without one can't be ordered — place_order() refuses the
+  // whole order — so Pay waits until it's removed in the Bag.
+  const unavailableCount = bagItems.filter((item) => isSelected(item) && !catalog[item.productId]).length;
+  // So does a selected design that no longer fits its customiser.
+  const staleCount = bagItems.filter(
+    (item) => isSelected(item) && catalog[item.productId] && isStaleDesign(item, catalog[item.productId]),
+  ).length;
+  const blocked = unavailableCount > 0 || staleCount > 0;
 
   const totals = computeBagTotals(bagItems, catalog);
 
   function pay() {
-    if (processing || !orderable) return;
+    if (processing || !orderable || blocked) return;
     setProcessing(true);
-    setOrderError("");
+    setOrderError(null);
     timer.current = setTimeout(() => void submitOrder(), PROCESSING_MS);
   }
 
   /**
    * After the simulated payment: the database prices the selected Bag rows,
-   * creates the order and removes those rows in one transaction. Only a
-   * successful order goes to Payment Success; on failure nothing was ordered
-   * and the Bag is unchanged.
+   * creates the order and removes those rows in one transaction. It is told
+   * the total shown here and refuses if it would charge anything else. Only
+   * a successful order goes to Payment Success; on failure nothing was
+   * ordered and the Bag is unchanged.
    */
   async function submitOrder() {
     try {
-      const orderNumber = await placeOrder(address.id, upiApp);
+      const orderNumber = await placeOrder(address.id, upiApp, totals.total);
       // Payment Success reloads the Bag (the ordered rows are gone from Supabase);
       // doing it here would make the checkout guard send this page to /bag.
       router.replace(`/payment-success?order=${encodeURIComponent(orderNumber)}`);
     } catch (error) {
       setProcessing(false);
-      setOrderError(error instanceof Error ? error.message : String(error));
+      setOrderError({
+        message: error instanceof Error ? error.message : String(error),
+        reviewBag: error instanceof OrderError && REVIEW_BAG_CODES.includes(error.code ?? ""),
+      });
     }
   }
 
@@ -134,9 +149,45 @@ function PaymentContents({ catalog, address }: { catalog: Record<string, BagProd
         <TotalAmountBar totals={totals} />
       </div>
 
+      {staleCount > 0 && (
+        <p role="status" className="mt-4 px-gutter text-[15px] text-danger">
+          {staleCount === 1
+            ? "A customised item uses a colour or part that’s no longer available, so this order can’t be placed. "
+            : `${staleCount} customised items use a colour or part that’s no longer available, so this order can’t be placed. `}
+          <Link href="/bag" className="font-medium text-ink underline">
+            Recreate or remove {staleCount === 1 ? "it" : "them"} in your bag
+          </Link>
+        </p>
+      )}
+
+      {unavailableCount > 0 && (
+        <p role="status" className="mt-4 px-gutter text-[15px] text-ink/50">
+          {unavailableCount === 1
+            ? "1 selected item isn’t available right now, so this order can’t be placed. "
+            : `${unavailableCount} selected items aren’t available right now, so this order can’t be placed. `}
+          <Link href="/bag" className="font-medium text-ink underline">
+            Remove {unavailableCount === 1 ? "it" : "them"} in your bag
+          </Link>
+        </p>
+      )}
+
       {orderError && (
         <div className="mt-6">
-          <CatalogueError title="Your order couldn’t be placed." message={orderError} onRetry={pay} />
+          {orderError.reviewBag ? (
+            // Same look as CatalogueError, but "Review your bag" instead of a retry that would fail again.
+            <div role="alert" className="mx-gutter rounded-[15px] bg-surface px-4 py-4">
+              <p className="font-medium">Your order couldn’t be placed.</p>
+              <p className="mt-1 text-[15px] text-ink/60 [overflow-wrap:anywhere]">{orderError.message}</p>
+              <Link
+                href="/bag"
+                className="mt-3 inline-flex h-10 items-center rounded-full border border-border bg-white px-5 text-[15px] font-medium"
+              >
+                Review your bag
+              </Link>
+            </div>
+          ) : (
+            <CatalogueError title="Your order couldn’t be placed." message={orderError.message} onRetry={pay} />
+          )}
         </div>
       )}
 
@@ -154,7 +205,7 @@ function PaymentContents({ catalog, address }: { catalog: Record<string, BagProd
                 selected={upiApp}
                 onSelect={setUpiApp}
                 onPay={pay}
-                disabled={processing}
+                disabled={processing || blocked}
               />
             )}
           </PaymentMethodRow>

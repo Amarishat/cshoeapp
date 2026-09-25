@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { useCheckoutStore } from "@/lib/store/checkout";
 import { validateAddress, type AddressErrors } from "@/lib/validation/address";
-import type { Address, AddressInput, LocationState } from "@/lib/types";
+import type { Address, AddressInput } from "@/lib/types";
 import { AddressCard } from "./AddressCard";
 import { AddressForm, emptyAddress } from "./AddressForm";
 import { useSavedAddresses } from "./useSavedAddresses";
@@ -28,11 +28,9 @@ export interface AddressSelection {
  * its address list are neither read nor changed.
  */
 export function AddressManager({
-  locations,
   className,
   selection,
 }: {
-  locations: LocationState[];
   className?: string;
   selection?: AddressSelection;
 }) {
@@ -77,7 +75,13 @@ export function AddressManager({
       );
       return;
     }
-    const clean = { ...form, fullName: form.fullName.trim(), street: form.street.trim() };
+    const clean = {
+      ...form,
+      fullName: form.fullName.trim(),
+      city: form.city.trim(),
+      area: form.area.trim(),
+      street: form.street.trim(),
+    };
     setSaving(true);
     setStatus("");
     setSaveError("");
@@ -151,7 +155,6 @@ export function AddressManager({
             value={form}
             onChange={setForm}
             errors={errors}
-            locations={locations}
           />
         </div>
 

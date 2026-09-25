@@ -7,7 +7,6 @@ import { computeBagTotals, formatPrice } from "@/lib/pricing";
 import { useBagStore } from "@/lib/store/bag";
 import { useCheckoutStore } from "@/lib/store/checkout";
 import { isValidAddress } from "@/lib/validation/address";
-import type { LocationState } from "@/lib/types";
 import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
 import { AddressManager } from "./AddressManager";
 import { CheckoutStepper } from "./CheckoutStepper";
@@ -17,7 +16,7 @@ import { CheckoutStepper } from "./CheckoutStepper";
  * bar's total is priced from the Supabase catalogue, like the Bag and the
  * later checkout steps.
  */
-export function AddressView({ locations }: { locations: LocationState[] }) {
+export function AddressView() {
   const router = useRouter();
   const { state } = useCatalogueLoad(loadBagCatalogue);
   const catalog = state.status === "ready" ? state.data : null;
@@ -35,7 +34,7 @@ export function AddressView({ locations }: { locations: LocationState[] }) {
         <CheckoutStepper current={1} />
       </div>
 
-      <AddressManager locations={locations} className="mt-10" />
+      <AddressManager className="mt-10" />
 
       {/* Continue bar — same pattern as the Order Summary frame (1:3644). */}
       <FixedBar>

@@ -1,4 +1,5 @@
-import { getCustomizationConfig } from "@/lib/data/supabaseCatalog";
+import { designMatches, STALE_DESIGN_MESSAGE } from "@/lib/customizationCheck";
+import { CatalogueDataError, getCustomizationConfig } from "@/lib/data/supabaseCatalog";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { ensureGuestSession } from "@/lib/supabase/guestSession";
 import type { CartItem, CustomizationSelection } from "@/lib/types";
@@ -130,6 +131,7 @@ export async function addCartItem(item: Pick<CartItem, "productId" | "size" | "q
   if (item.quantity > MAX_CART_QUANTITY) throw new CartError("add to your bag", overLimit);
   const userId = await currentUserId();
   const customization = item.customization && Object.keys(item.customization).length > 0 ? item.customization : null;
+  if (customization) await assertDesignCurrent("add to your bag", item.productId, customization);
 
   if (!customization && (await incrementPlainItem(userId, item.productId, sizeUK, item.quantity))) return;
 
@@ -146,6 +148,85 @@ export async function addCartItem(item: Pick<CartItem, "productId" | "size" | "q
     return;
   }
   throw addError(error);
+}
+
+/**
+ * Buy Now: makes the Bag hold exactly what's being bought now, ready for
+ * checkout. The plain product + size gets its own line at exactly `quantity`
+ * (the line already in the Bag is reused, not added to) and is the only
+ * selected line — every other line is deselected, so checkout (which orders
+ * the selected lines) orders just this. Nothing else is removed or changed.
+ * Customised items never go through here; they're always their own line.
+ */
+export async function prepareBuyNowItem(item: Pick<CartItem, "productId" | "size" | "quantity">) {
+  const action = "buy this now";
+  const sizeUK = parseSizeUK(item.size);
+  if (sizeUK === null) throw new CartError(action, { message: `"${item.size}" isn’t a UK size` });
+  if (!Number.isInteger(item.quantity) || item.quantity < 1) {
+    throw new CartError(action, { message: "quantity must be at least 1" });
+  }
+  if (item.quantity > MAX_CART_QUANTITY) throw new CartError(action, overLimit);
+  const userId = await currentUserId();
+  const client = getSupabaseClient();
+
+  /** The plain line for this product + size, set to the Buy Now quantity and selected; its id, or null if there's none. */
+  async function selectExistingLine(): Promise<string | null> {
+    const { data, error } = await client
+      .from("cart_items")
+      .update({ quantity: item.quantity, is_selected: true })
+      .eq("user_id", userId)
+      .eq("product_id", item.productId)
+      .eq("size_uk", sizeUK)
+      .is("customization", null)
+      .select("id")
+      .maybeSingle()
+      .overrideTypes<{ id: string } | null, { merge: false }>();
+    if (error) throw new CartError(action, friendly(error));
+    return data?.id ?? null;
+  }
+
+  let id = await selectExistingLine();
+  if (id === null) {
+    const { data, error } = await client
+      .from("cart_items")
+      .insert({ user_id: userId, product_id: item.productId, size_uk: sizeUK, quantity: item.quantity, is_selected: true })
+      .select("id")
+      .single()
+      .overrideTypes<{ id: string }, { merge: false }>();
+    // Another tab added the same plain item a moment ago: use that line instead.
+    if (error?.code === "23505") id = await selectExistingLine();
+    else if (error) throw new CartError(action, friendly(error));
+    else id = data.id;
+  }
+  if (id === null) throw new CartError(action, { message: "the item couldn’t be put in your bag" });
+
+  // Only this line is ordered: every other line is deselected (and kept).
+  const { error } = await client
+    .from("cart_items")
+    .update({ is_selected: false })
+    .eq("user_id", userId)
+    .neq("id", id)
+    .eq("is_selected", true);
+  if (error) throw new CartError(action, friendly(error));
+}
+
+/**
+ * Refuses a design that no longer fits the product's current customiser (a
+ * part or colour removed since it was saved), with a message the customer can
+ * act on. The design itself is never changed. place_order() checks the same
+ * rule; this just says so before the Bag, not at payment.
+ */
+async function assertDesignCurrent(action: string, productId: string, design: CustomizationSelection) {
+  let config: Awaited<ReturnType<typeof getCustomizationConfig>>;
+  try {
+    config = await getCustomizationConfig(productId);
+  } catch (error) {
+    // A broken customiser setup: no design for it can be ordered.
+    if (error instanceof CatalogueDataError) throw new CartError(action, { message: STALE_DESIGN_MESSAGE });
+    throw error;
+  }
+  const options = config && { partIds: config.parts.map((p) => p.id), colourIds: config.colours.map((c) => c.id) };
+  if (!options || !designMatches(design, options)) throw new CartError(action, { message: STALE_DESIGN_MESSAGE });
 }
 
 async function updateRows(action: string, values: Record<string, unknown>, ids: string[] | "all") {
@@ -167,6 +248,19 @@ export async function updateCartCustomization(
 ): Promise<CartItem> {
   const userId = await currentUserId();
   const design = customization && Object.keys(customization).length > 0 ? customization : null;
+  if (design) {
+    // The product comes from the row itself, so check against that product's customiser.
+    const { data: row, error: rowError } = await getSupabaseClient()
+      .from("cart_items")
+      .select("product_id")
+      .eq("user_id", userId)
+      .eq("id", id)
+      .maybeSingle()
+      .overrideTypes<{ product_id: string } | null, { merge: false }>();
+    if (rowError) throw new CartError("save your customisation", rowError);
+    if (!row) throw new CartError("save your customisation", { message: "that bag item no longer exists" });
+    await assertDesignCurrent("save your customisation", row.product_id, design);
+  }
   const { data, error } = await getSupabaseClient()
     .from("cart_items")
     .update({ customization: design })
@@ -243,12 +337,24 @@ function keepUnmigrated(item: CartItem) {
 /** Customisations must name parts and colours of that product's customiser. */
 async function customizationIsValid(item: CartItem, configs: Map<string, Awaited<ReturnType<typeof getCustomizationConfig>>>) {
   if (!item.customization || Object.keys(item.customization).length === 0) return true;
-  if (!configs.has(item.productId)) configs.set(item.productId, await getCustomizationConfig(item.productId));
+  if (!configs.has(item.productId)) {
+    let config: Awaited<ReturnType<typeof getCustomizationConfig>>;
+    try {
+      config = await getCustomizationConfig(item.productId);
+    } catch (error) {
+      // A malformed customiser setup makes the item invalid (set aside, not
+      // added); a failed request still stops the move so it's retried later.
+      if (!(error instanceof CatalogueDataError)) throw error;
+      config = null;
+    }
+    configs.set(item.productId, config);
+  }
   const config = configs.get(item.productId);
   if (!config) return false;
-  return Object.entries(item.customization).every(
-    ([part, colour]) => config.parts.some((p) => p.id === part) && config.colours.some((c) => c.id === colour),
-  );
+  return designMatches(item.customization, {
+    partIds: config.parts.map((p) => p.id),
+    colourIds: config.colours.map((c) => c.id),
+  });
 }
 
 async function migrateLegacyBagUnlocked(): Promise<void> {

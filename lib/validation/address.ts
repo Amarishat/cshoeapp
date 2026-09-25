@@ -1,8 +1,12 @@
+import { isIndiaState } from "@/lib/data/locations";
 import type { AddressInput } from "@/lib/types";
 
 export type AddressErrors = Partial<Record<keyof AddressInput, string>>;
 
-/** Confirmed V1 rules: all fields required, phone = 10 digits, pincode = 6 digits. */
+/**
+ * Confirmed V1 rules: all fields required, phone = 10 digits, pincode = 6
+ * digits, state one of India's states/UTs; city and area are free text.
+ */
 export function validateAddress(a: AddressInput): AddressErrors {
   const errors: AddressErrors = {};
   if (!a.fullName.trim()) errors.fullName = "Enter your full name";
@@ -11,8 +15,9 @@ export function validateAddress(a: AddressInput): AddressErrors {
   if (!a.pincode.trim()) errors.pincode = "Enter pincode";
   else if (!/^\d{6}$/.test(a.pincode.trim())) errors.pincode = "Pincode must be 6 digits";
   if (!a.state) errors.state = "Select state";
-  if (!a.city) errors.city = "Select city";
-  if (!a.area) errors.area = "Select area";
+  else if (!isIndiaState(a.state)) errors.state = "Select a state from the list";
+  if (!a.city.trim()) errors.city = "Enter city";
+  if (!a.area.trim()) errors.area = "Enter area";
   if (!a.street.trim()) errors.street = "Enter street address";
   return errors;
 }

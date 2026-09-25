@@ -7,6 +7,7 @@ import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { isStaleDesign } from "@/lib/customizationCheck";
 import { loadBagCatalogue } from "@/lib/data/bagCatalogue";
 import { computeBagTotals, formatAmount, formatPrice, isSelected } from "@/lib/pricing";
 import { useBagStore } from "@/lib/store/bag";
@@ -20,15 +21,40 @@ function EmptyBag() {
   return <EmptyState icon="bag" title="Your bag is empty" actionLabel="Continue Shopping" actionHref="/" />;
 }
 
-/** Note for saved Bag items whose product can't be shown (they stay saved). */
-function UnavailableNote({ count }: { count: number }) {
+/**
+ * Note for saved Bag items whose product can't be shown. They stay saved, but
+ * place_order() refuses an order that includes one, so the customer can
+ * remove them here — after confirming, never automatically.
+ */
+function UnavailableItems({ count, onRemove }: { count: number; onRemove: () => void }) {
+  const [confirming, setConfirming] = useState(false);
   if (count === 0) return null;
   return (
-    <p role="status" className="mt-4 px-gutter text-[15px] text-ink/50">
-      {count === 1
-        ? "1 item in your bag isn’t available right now and isn’t included."
-        : `${count} items in your bag aren’t available right now and aren’t included.`}
-    </p>
+    <>
+      <p role="status" className="mt-4 px-gutter text-[15px] text-ink/50">
+        {count === 1
+          ? "1 item in your bag isn’t available right now and can’t be ordered. "
+          : `${count} items in your bag aren’t available right now and can’t be ordered. `}
+        <button type="button" onClick={() => setConfirming(true)} className="font-medium text-ink underline">
+          {count === 1 ? "Remove it" : "Remove them"}
+        </button>
+      </p>
+      <ConfirmDialog
+        open={confirming}
+        title={count === 1 ? "Remove the unavailable item?" : "Remove the unavailable items?"}
+        message={
+          count === 1
+            ? "It isn’t available right now, so it can’t be ordered."
+            : `These ${count} items aren’t available right now, so they can’t be ordered.`
+        }
+        confirmLabel="Remove"
+        onConfirm={() => {
+          onRemove();
+          setConfirming(false);
+        }}
+        onCancel={() => setConfirming(false)}
+      />
+    </>
   );
 }
 
@@ -98,12 +124,21 @@ function BagContents({ catalog }: { catalog: Record<string, BagProduct> }) {
   const setSelected = useBagStore((s) => s.setSelected);
   const setAllSelected = useBagStore((s) => s.setAllSelected);
   const remove = useBagStore((s) => s.remove);
+  const removeItems = useBagStore((s) => s.removeItems);
   const [pendingRemoval, setPendingRemoval] = useState<string | null>(null);
 
   // Items whose product isn't in the catalogue are not shown or priced (nothing
-  // is made up for them) but stay saved; a note says so.
+  // is made up for them) but stay saved; a note says so and offers to remove
+  // them. While one of them is selected, the order can't be placed —
+  // place_order() would refuse it — so Place Order waits.
   const items = allItems.filter((item) => catalog[item.productId]);
-  const unavailableCount = allItems.length - items.length;
+  const unavailable = allItems.filter((item) => !catalog[item.productId]);
+  // A selected design that no longer fits its customiser can't be ordered either
+  // (place_order() refuses it); its row says so, and Place Order waits.
+  const blocked =
+    unavailable.some(isSelected) ||
+    items.some((item) => isSelected(item) && isStaleDesign(item, catalog[item.productId]));
+  const removeUnavailable = () => void removeItems(unavailable.map((item) => item.id));
   const totals = computeBagTotals(items, catalog);
   const allSelected = items.length > 0 && items.every(isSelected);
   const pendingItem = items.find((item) => item.id === pendingRemoval);
@@ -111,7 +146,8 @@ function BagContents({ catalog }: { catalog: Record<string, BagProduct> }) {
   if (items.length === 0) {
     return (
       <div>
-        <UnavailableNote count={unavailableCount} />
+        <UnavailableItems count={unavailable.length} onRemove={removeUnavailable} />
+        <BagActionError className="mt-4" />
         <EmptyBag />
       </div>
     );
@@ -131,7 +167,7 @@ function BagContents({ catalog }: { catalog: Record<string, BagProduct> }) {
         </p>
         <p>({formatPrice(totals.subtotal)})</p>
       </div>
-      <UnavailableNote count={unavailableCount} />
+      <UnavailableItems count={unavailable.length} onRemove={removeUnavailable} />
       <BagActionError className="mt-4" />
 
       {/* Items */}
@@ -143,6 +179,7 @@ function BagContents({ catalog }: { catalog: Record<string, BagProduct> }) {
             className={index > 0 ? "mt-10 border-t border-[#d9d9d9] pt-10" : undefined}
             item={item}
             product={catalog[item.productId]}
+            stale={isStaleDesign(item, catalog[item.productId])}
             onQuantityChange={(quantity) => setQuantity(item.id, quantity)}
             onSelectedChange={(selected) => setSelected(item.id, selected)}
             onRemoveRequest={() => setPendingRemoval(item.id)}
@@ -178,7 +215,7 @@ function BagContents({ catalog }: { catalog: Record<string, BagProduct> }) {
           </p>
           <button
             type="button"
-            disabled={totals.selectedCount === 0}
+            disabled={totals.selectedCount === 0 || blocked}
             onClick={() => router.push("/checkout/address")}
             className="h-[55px] w-[222px] rounded-[30px] bg-primary text-body font-medium text-white disabled:opacity-50"
           >

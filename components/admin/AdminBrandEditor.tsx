@@ -14,6 +14,7 @@ import {
   type AdminBrandEdit,
 } from "@/lib/data/adminBrands";
 import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
+import { imagePathError } from "@/lib/validation/imagePath";
 
 /** Brand editor — name, logo and order. The id (slug) can't change: products reference it. */
 export function AdminBrandEditor({ brandId }: { brandId: string }) {
@@ -76,7 +77,8 @@ function EditForm({ brand }: { brand: AdminBrandDetail }) {
   const [error, setError] = useState("");
 
   const nameError = name.trim() === "" ? "Enter a brand name." : undefined;
-  const logoError = logoUrl.trim() === "" ? "Enter the logo path." : undefined;
+  // A local image path only: anything else would break next/image here and on the storefront.
+  const logoError = logoUrl.trim() === "" ? "Enter the logo path." : imagePathError(logoUrl.trim());
   const widthError = numberError(width, { integer: false });
   const heightError = numberError(height, { integer: false });
   const sortError = numberError(sortOrder, { integer: true });
@@ -145,13 +147,13 @@ function EditForm({ brand }: { brand: AdminBrandDetail }) {
 
         <div className="flex items-end gap-5">
           <span className="flex size-[72px] shrink-0 items-center justify-center rounded-[9px] bg-surface">
-            {logoUrl.trim() && !logoError ? (
+            {!logoError ? (
               <Image
-                src={logoUrl}
+                src={logoUrl.trim()}
                 alt=""
                 width={44}
                 height={44}
-                unoptimized={logoUrl.endsWith(".svg")}
+                unoptimized={logoUrl.trim().toLowerCase().endsWith(".svg")}
                 className="max-h-11 w-11 object-contain"
               />
             ) : null}

@@ -6,6 +6,7 @@ import { u } from "@/components/home/banner";
 import { TryOnButton } from "@/components/product/TryOnButton";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { cn } from "@/lib/cn";
+import { designMatches, STALE_DESIGN_MESSAGE } from "@/lib/customizationCheck";
 import { formatPrice } from "@/lib/pricing";
 import { useBagStore } from "@/lib/store/bag";
 import { useCustomizationStore } from "@/lib/store/customization";
@@ -69,6 +70,20 @@ export function CustomizerView({
 
   const part = config.parts[partIndex];
   const partColour = config.colours.find((c) => c.id === selection[part.id]);
+  // A saved design (device draft or Bag item) that names a part or colour this
+  // customiser no longer has can't be ordered: say so now, don't let it be
+  // added or saved, and let the customer start again — never change it for them.
+  const stale = !designMatches(selection, {
+    partIds: config.parts.map((p) => p.id),
+    colourIds: config.colours.map((c) => c.id),
+  });
+
+  /** The customer chose to start again: an empty design (nothing is saved until they add or save). */
+  function startNewDesign() {
+    if (editing) setEditSelection({});
+    else clearDraft(config.productId);
+    setAddError("");
+  }
 
   function chooseColour(colourId: string) {
     if (editing) setEditSelection({ ...selection, [part.id]: colourId });
@@ -79,6 +94,7 @@ export function CustomizerView({
 
   async function onAdd() {
     if (adding || waitingForItem) return;
+    if (stale) return void setAddError(STALE_DESIGN_MESSAGE);
     if (editing) return void saveEdit();
     const customised = Object.keys(selection).length > 0;
     setAdding(true);
@@ -175,10 +191,19 @@ export function CustomizerView({
               ? "Added to bag"
               : "Swipe down to add"}
       </p>
-      {addError && (
-        <p role="alert" className="mt-2 px-gutter text-center text-secondary text-danger [overflow-wrap:anywhere]">
-          {addError}
-        </p>
+      {stale ? (
+        <div role="alert" className="mt-2 px-gutter text-center text-secondary text-danger [overflow-wrap:anywhere]">
+          <p>{STALE_DESIGN_MESSAGE}</p>
+          <button type="button" onClick={startNewDesign} className="mt-1 font-medium text-ink underline">
+            Start a new design
+          </button>
+        </div>
+      ) : (
+        addError && (
+          <p role="alert" className="mt-2 px-gutter text-center text-secondary text-danger [overflow-wrap:anywhere]">
+            {addError}
+          </p>
+        )
       )}
 
       <div className="mt-[21px] grid grid-cols-[1fr_auto_1fr] items-start">

@@ -22,17 +22,43 @@ export class OrderError extends Error {
 }
 
 /**
- * Places the order for the guest's selected Bag items, delivered to
- * `addressId`, paid with `upiApp` (the payment itself is simulated). Returns
- * the database's order number (e.g. "OD10000000001"). Throws if the database
- * refused or the request failed; in that case nothing was ordered.
+ * The database's code (55000) for "the Bag no longer matches what was
+ * reviewed": a selected item that can't be ordered, or a total that changed.
+ * Trying again would fail the same way; the customer has to review the Bag.
  */
-export async function placeOrder(addressId: string, upiApp: UpiAppId): Promise<string> {
+export const REVIEW_BAG_CODE = "55000";
+
+/**
+ * place_order()'s refusals that trying again can't fix — the Bag has to be
+ * reviewed first: REVIEW_BAG_CODE, and 22023 for a customised item whose
+ * design no longer fits its customiser.
+ */
+export const REVIEW_BAG_CODES: readonly string[] = [REVIEW_BAG_CODE, "22023"];
+
+/**
+ * Places the order for the guest's selected Bag items, delivered to
+ * `addressId`, paid with `upiApp` (the payment itself is simulated).
+ * `expectedTotal` is the total the customer was shown: the database refuses
+ * (REVIEW_BAG_CODE) if what it is about to charge differs, or if a selected
+ * item isn't one the checkout could show. Returns the database's order
+ * number (e.g. "OD10000000001"). Throws if the database refused or the
+ * request failed; in that case nothing was ordered.
+ */
+export async function placeOrder(addressId: string, upiApp: UpiAppId, expectedTotal: number): Promise<string> {
   await ensureGuestSession();
   const { data, error } = await getSupabaseClient().rpc("place_order", {
     p_address_id: addressId,
     p_upi_app: upiApp,
+    p_expected_total: expectedTotal,
   });
+  if (error?.code === "22023") {
+    // "Invalid customisation" and friends: say which kind of item and what to do.
+    throw new OrderError("place your order", {
+      message:
+        "a customised item in your bag uses a colour or part that’s no longer available. Recreate or remove it in your bag, then try again",
+      code: error.code,
+    });
+  }
   if (error) throw new OrderError("place your order", error);
   if (typeof data !== "string" || !data) {
     throw new OrderError("place your order", { message: "no order number was returned" });

@@ -21,7 +21,7 @@ import {
 import { formatAmount, formatPrice } from "@/lib/pricing";
 import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
 import { useShareFeedback } from "@/lib/useShareFeedback";
-import type { LocationState, Order, OrderLine } from "@/lib/types";
+import type { Order, OrderLine } from "@/lib/types";
 import { EditDeliveryAddress } from "./EditDeliveryAddress";
 import { EditOrderItems } from "./EditOrderItems";
 import { OrderTimeline } from "./OrderTimeline";
@@ -160,11 +160,9 @@ function SendOrderDetails({ order }: { order: Order }) {
 
 function Details({
   order,
-  locations,
   onOrderChange,
 }: {
   order: Order;
-  locations: LocationState[];
   /** A fresh copy of the order after it was changed here. */
   onOrderChange: (order: Order) => void;
 }) {
@@ -284,7 +282,6 @@ function Details({
           <EditOrderItems order={order} onUpdated={onOrderChange} onRefused={onRefused} />
           <EditDeliveryAddress
             order={order}
-            locations={locations}
             onRefused={onRefused}
             onClose={() => setEditing(false)}
             onUpdated={(fresh, changed) => {
@@ -385,7 +382,7 @@ function Details({
  * from the URL; the order is read from Supabase (orders saved only on this
  * device by V1 are not shown).
  */
-export function OrderDetailsView({ orderId, locations }: { orderId: string; locations: LocationState[] }) {
+export function OrderDetailsView({ orderId }: { orderId: string }) {
   const { state, retry } = useCatalogueLoad(getOrderByNumber, orderId);
   // The order as re-read after a change on this screen, shown instead of the loaded copy.
   const [updated, setUpdated] = useState<Order | null>(null);
@@ -421,5 +418,5 @@ export function OrderDetailsView({ orderId, locations }: { orderId: string; loca
     );
   }
 
-  return <Details order={order} locations={locations} onOrderChange={setUpdated} />;
+  return <Details order={order} onOrderChange={setUpdated} />;
 }

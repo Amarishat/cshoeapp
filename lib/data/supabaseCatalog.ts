@@ -18,14 +18,27 @@ import type {
  * mapped onto the app's existing types where they fit. Any Supabase error is
  * thrown as a CatalogueError — never replaced with mock data.
  *
- * Used by Home, Shop (+ Filters), Brand pages and the product page; other
- * screens still read the mock data files.
+ * Used by Home, Shop (+ Filters), Brand pages, the product page, the
+ * customiser and the Bag.
  */
 
 export class CatalogueError extends Error {
   constructor(what: string, cause: { message: string; code?: string }) {
     super(`Could not load ${what} from Supabase: ${cause.message}`, { cause });
     this.name = "CatalogueError";
+  }
+}
+
+/**
+ * The data loaded fine but is incomplete or malformed (e.g. a customiser
+ * whose product has no sizes). Unlike a plain CatalogueError — a failed
+ * request — it concerns only that one item, so a list that shows many can
+ * leave it out instead of failing as a whole.
+ */
+export class CatalogueDataError extends CatalogueError {
+  constructor(what: string, cause: { message: string }) {
+    super(what, cause);
+    this.name = "CatalogueDataError";
   }
 }
 
@@ -307,10 +320,10 @@ export async function getCustomizationConfig(productId: string): Promise<Customi
   if (!data) return null;
 
   const what = `customisation for "${productId}"`;
-  if (!data.product) throw new CatalogueError(what, { message: "product not found" });
+  if (!data.product) throw new CatalogueDataError(what, { message: "product not found" });
   const { sizesUK, defaultSizeUK } = sizesOf(data.product.product_sizes);
   if (sizesUK.length === 0 || defaultSizeUK === null) {
-    throw new CatalogueError(what, { message: "product has no sizes or no default size" });
+    throw new CatalogueDataError(what, { message: "product has no sizes or no default size" });
   }
 
   return {

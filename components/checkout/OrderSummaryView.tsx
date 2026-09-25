@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { FixedBar } from "@/components/layout/FixedBar";
 import { BagActionError } from "@/components/bag/BagActionError";
 import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { isStaleDesign } from "@/lib/customizationCheck";
 import { loadBagCatalogue } from "@/lib/data/bagCatalogue";
 import { listAddresses } from "@/lib/data/userAddresses";
 import { computeBagTotals, formatAmount, formatNumber, isSelected } from "@/lib/pricing";
@@ -90,10 +92,14 @@ function OrderSummaryContents({ catalog, address }: { catalog: Record<string, Ba
   const [pendingRemoval, setPendingRemoval] = useState<string | null>(null);
 
   // Selected items whose product isn't in the catalogue are not shown or
-  // priced (nothing is made up for them); a note says so.
+  // priced (nothing is made up for them). place_order() refuses an order that
+  // includes one, so a note sends the customer to the Bag to remove it, and
+  // Continue waits until then.
   const selected = bagItems.filter(isSelected);
   const items = selected.filter((item) => catalog[item.productId]);
   const unavailableCount = selected.length - items.length;
+  // Selected designs that no longer fit their customiser: place_order() would refuse them.
+  const staleCount = items.filter((item) => isStaleDesign(item, catalog[item.productId])).length;
   const totals = computeBagTotals(bagItems, catalog);
   const pendingItem = items.find((item) => item.id === pendingRemoval);
 
@@ -123,8 +129,22 @@ function OrderSummaryContents({ catalog, address }: { catalog: Record<string, Ba
       {unavailableCount > 0 && (
         <p role="status" className="mt-4 px-gutter text-[15px] text-ink/50">
           {unavailableCount === 1
-            ? "1 selected item isn’t available right now and isn’t included."
-            : `${unavailableCount} selected items aren’t available right now and aren’t included.`}
+            ? "1 selected item isn’t available right now, so this order can’t be placed. "
+            : `${unavailableCount} selected items aren’t available right now, so this order can’t be placed. `}
+          <Link href="/bag" className="font-medium text-ink underline">
+            Remove {unavailableCount === 1 ? "it" : "them"} in your bag
+          </Link>
+        </p>
+      )}
+
+      {staleCount > 0 && (
+        <p role="status" className="mt-4 px-gutter text-[15px] text-danger">
+          {staleCount === 1
+            ? "A customised item uses a colour or part that’s no longer available, so this order can’t be placed. "
+            : `${staleCount} customised items use a colour or part that’s no longer available, so this order can’t be placed. `}
+          <Link href="/bag" className="font-medium text-ink underline">
+            Recreate or remove {staleCount === 1 ? "it" : "them"} in your bag
+          </Link>
         </p>
       )}
 
@@ -181,7 +201,7 @@ function OrderSummaryContents({ catalog, address }: { catalog: Record<string, Ba
           </div>
           <button
             type="button"
-            disabled={items.length === 0}
+            disabled={items.length === 0 || unavailableCount > 0 || staleCount > 0}
             onClick={() => router.push("/checkout/payment")}
             className="mt-6 h-[51px] max-w-[173px] min-w-0 flex-1 rounded-[25.5px] bg-primary text-[17px] font-semibold text-white disabled:opacity-50"
           >

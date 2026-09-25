@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AddressManager } from "@/components/checkout/AddressManager";
 import { getOrderByNumber, updateOrderAddress } from "@/lib/data/userOrders";
-import type { Address, LocationState, Order } from "@/lib/types";
+import type { Address, Order } from "@/lib/types";
 
 /** The shipping fields update_order_address() copies (and compares); the address id is left out. */
 const SHIPPING_FIELDS = ["fullName", "phone", "pincode", "state", "city", "area", "street", "type"] as const;
@@ -32,13 +32,11 @@ function shippingChanged(before: Order, after: Order): boolean {
  */
 export function EditDeliveryAddress({
   order,
-  locations,
   onUpdated,
   onRefused,
   onClose,
 }: {
   order: Order;
-  locations: LocationState[];
   /** Saved: the fresh order, and whether its shipping details are different from before. */
   onUpdated: (order: Order, changed: boolean) => void;
   /** The change was refused: the order as re-read (null if it couldn't be), and why. */
@@ -91,7 +89,6 @@ export function EditDeliveryAddress({
       </p>
 
       <AddressManager
-        locations={locations}
         selection={{ selectedId, onSelect: setSelectedId, onAddresses: setAddresses }}
         className="mt-6"
       />

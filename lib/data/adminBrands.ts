@@ -1,5 +1,6 @@
 import { getBrands, getProducts } from "@/lib/data/supabaseCatalog";
 import { getAdminSupabaseClient } from "@/lib/supabase/client";
+import { imagePathError } from "@/lib/validation/imagePath";
 
 /*
  * Brands for the admin, read with the same catalogue queries the storefront
@@ -104,6 +105,9 @@ export async function getAdminBrand(id: string): Promise<AdminBrandDetail | null
  * row, which is reported as an error rather than a silent no-op.
  */
 export async function updateAdminBrand(id: string, edit: AdminBrandEdit): Promise<AdminBrandDetail> {
+  // Only a local image path is saved: anything else would break next/image on the storefront.
+  const logoProblem = imagePathError(edit.logoUrl.trim());
+  if (logoProblem) throw new AdminBrandError("save the brand", { message: logoProblem });
   const { data, error } = await getAdminSupabaseClient()
     .from("brands")
     .update({
