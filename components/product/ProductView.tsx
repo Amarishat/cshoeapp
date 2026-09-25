@@ -10,6 +10,7 @@ import { ComingSoonBadge } from "@/components/ui/ComingSoonBadge";
 import { Icon } from "@/components/ui/Icon";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { cn } from "@/lib/cn";
+import { MAX_CART_QUANTITY } from "@/lib/data/userCart";
 import { formatPrice } from "@/lib/pricing";
 import { sizeLabel, type SizeSystem } from "@/lib/sizes";
 import { useBagStore } from "@/lib/store/bag";
@@ -82,26 +83,50 @@ export function ProductView({
   const reviewCount = product.reviews.length;
   const thumbnails = product.gallery.slice(1);
 
-  /** Saves to the Bag (Supabase); true once saved. A failure is shown below the buttons. */
-  async function add(): Promise<boolean> {
-    if (adding) return false;
+  /**
+   * Saves to the Bag (Supabase). Returns null once saved, or why it wasn't
+   * (each button shows that below the buttons in its own words); "" when a
+   * save is already under way and this tap is ignored.
+   */
+  async function add(): Promise<string | null> {
+    if (adding) return "";
     setAdding(true);
     setAddError("");
     const error = await addToBag({ id: "", productId: product.id, size: `UK ${sizeUK}`, quantity });
     setAdding(false);
-    if (error) setAddError(error);
-    return !error;
+    return error;
+  }
+
+  /** Whether the Bag (as just loaded by the add) already has this plain item and size at the limit. */
+  function atLimitInBag(): boolean {
+    const line = useBagStore
+      .getState()
+      .items.find((item) => item.productId === product.id && item.size === `UK ${sizeUK}` && !item.customization);
+    return !!line && line.quantity >= MAX_CART_QUANTITY;
   }
 
   async function onAddToBag() {
-    if (!(await add())) return;
+    const error = await add();
+    if (error !== null) {
+      if (error) setAddError(error);
+      return;
+    }
     setJustAdded(true);
     clearTimeout(addedTimer.current);
     addedTimer.current = setTimeout(() => setJustAdded(false), 2000);
   }
 
   async function onBuyNow() {
-    if (await add()) router.push("/checkout/address");
+    const error = await add();
+    if (error === null) {
+      router.push("/checkout/address");
+      return;
+    }
+    if (!error) return;
+    // Already at the limit: say so plainly instead of the general "Could not add…" message.
+    setAddError(
+      atLimitInBag() ? `You already have the maximum quantity of ${MAX_CART_QUANTITY} for this item.` : error,
+    );
   }
 
   function showReviews() {
