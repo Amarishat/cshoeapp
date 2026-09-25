@@ -42,9 +42,9 @@ function UnlockSlide() {
         className="absolute font-banner text-black"
         style={{ left: u(30), top: u(23), fontSize: u(26), lineHeight: u(30) }}
       >
-        Unlock <span className="text-accent">20% Off</span>
+        Find Your <span className="text-accent">Style</span>
         <br />
-        on All Brands
+        in Every Brand
       </p>
       <p
         className="absolute font-semibold whitespace-nowrap text-[#202727]"
@@ -74,16 +74,16 @@ function DiscountSlide({ variant }: { variant: "green" | "promo" }) {
         style={{ left: u(35), top: u(38) }}
       >
         <span className="text-accent" style={{ fontSize: u(30) }}>
-          20%
+          Fresh
         </span>
         <span style={{ fontSize: u(28) }}> </span>
-        <span style={{ fontSize: u(20) }}>Discount</span>
+        <span style={{ fontSize: u(20) }}>Picks</span>
       </p>
       <p
         className="absolute whitespace-nowrap text-[#202727]"
         style={{ left: u(35), top: u(80), fontSize: u(14) }}
       >
-        on your first purchase
+        for your next pair
       </p>
       <ShopNowPill label="Shop now" />
       {variant === "green" ? (
@@ -107,9 +107,9 @@ function DiscountSlide({ variant }: { variant: "green" | "promo" }) {
 }
 
 const slides = [
-  { key: "unlock", label: "Unlock 20% off on all brands", node: <UnlockSlide /> },
-  { key: "discount-1", label: "20% discount on your first purchase", node: <DiscountSlide variant="green" /> },
-  { key: "discount-2", label: "20% discount on your first purchase", node: <DiscountSlide variant="promo" /> },
+  { key: "unlock", label: "Find your style in every brand", node: <UnlockSlide /> },
+  { key: "discount-1", label: "Fresh picks for your next pair", node: <DiscountSlide variant="green" /> },
+  { key: "discount-2", label: "Fresh picks for your next pair", node: <DiscountSlide variant="promo" /> },
 ];
 
 export function PromoCarousel() {

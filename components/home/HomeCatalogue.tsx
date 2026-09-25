@@ -8,6 +8,7 @@ import { SectionHeader } from "@/components/home/SectionHeader";
 import { CardPlaceholder, CatalogueError } from "@/components/product/CatalogueStatus";
 import { ProductCard } from "@/components/product/ProductCard";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { CUSTOMIZER_PAGES } from "@/lib/data/customizerPages";
 import { getBrands, getProducts, type CatalogueProduct } from "@/lib/data/supabaseCatalog";
 import { usePreferencesStore } from "@/lib/store/preferences";
 import { useStoreHydrated } from "@/lib/store/useStoreHydrated";
@@ -64,6 +65,18 @@ function useHomeCatalogue() {
 }
 
 const AUDIENCE_LABEL = { men: "Men", women: "Women", kids: "Kids" } as const;
+
+/** Slugs with a built customiser route (/products/<slug>/customise); any other slug is a 404. */
+const CUSTOMISER_SLUGS: ReadonlySet<string> = new Set(CUSTOMIZER_PAGES.map((page) => page.slug));
+
+/**
+ * Whether a product's customise card can link: the catalogue must mark it
+ * customisable and a customiser page must exist for it — the flag alone (which
+ * an admin can switch on for any product) isn't enough.
+ */
+function hasCustomiser(product: CatalogueProduct): boolean {
+  return product.customizable && CUSTOMISER_SLUGS.has(product.slug);
+}
 
 /**
  * The Home sections for the chosen Men/Women/Kids tab, in Home order.
@@ -217,7 +230,7 @@ export function HomeCustomisationSection() {
                 action="customise"
                 categoryOpacity={50}
                 // Only products with a built Customizer link; others are Coming Soon.
-                linkable={product.customizable}
+                linkable={hasCustomiser(product)}
               />
             ))}
           </ProductRail>
