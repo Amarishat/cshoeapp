@@ -220,6 +220,29 @@ export async function getProducts(): Promise<CatalogueProduct[]> {
   return data.map(toCatalogueProduct);
 }
 
+/**
+ * The UK sizes each of `productIds` offers, in display order, from one
+ * product_sizes query. Every requested product is in the result; one with no
+ * sizes maps to [].
+ */
+export async function getProductSizes(productIds: string[]): Promise<Record<string, number[]>> {
+  const ids = [...new Set(productIds.filter(Boolean))];
+  const result: Record<string, number[]> = Object.fromEntries(ids.map((id) => [id, []]));
+  if (ids.length === 0) return result;
+
+  const { data, error } = await getSupabaseClient()
+    .from("product_sizes")
+    .select("product_id, size_uk, is_default, sort_order")
+    .in("product_id", ids)
+    .overrideTypes<(ProductSizeRow & { product_id: string })[], { merge: false }>();
+  if (error) throw new CatalogueError("product sizes", error);
+
+  for (const id of ids) {
+    result[id] = sizesOf(data.filter((row) => row.product_id === id)).sizesUK;
+  }
+  return result;
+}
+
 /** One product by slug with its brand, gallery, sizes and reviews; null if none. */
 export async function getProductBySlug(slug: string): Promise<CatalogueProductDetail | null> {
   const { data, error } = await getSupabaseClient()

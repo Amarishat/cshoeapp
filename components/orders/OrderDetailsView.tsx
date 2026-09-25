@@ -23,6 +23,7 @@ import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
 import { useShareFeedback } from "@/lib/useShareFeedback";
 import type { LocationState, Order, OrderLine } from "@/lib/types";
 import { EditDeliveryAddress } from "./EditDeliveryAddress";
+import { EditOrderItems } from "./EditOrderItems";
 import { OrderTimeline } from "./OrderTimeline";
 
 /** Search field from Figma (same look as My Orders); submitting opens /orders with the query. */
@@ -168,7 +169,7 @@ function Details({
   onOrderChange: (order: Order) => void;
 }) {
   const status = orderStatusView(order);
-  // Only a confirmed (not yet shipped) order can be edited — for now, its delivery address.
+  // Only a confirmed (not yet shipped) order can be edited: its items' size and quantity, and its delivery address.
   const editable = order.status === "confirmed";
   const [editing, setEditing] = useState(false);
   const [addressStatus, setAddressStatus] = useState("");
@@ -238,7 +239,7 @@ function Details({
           <button
             type="button"
             aria-expanded={editing}
-            aria-controls="edit-delivery-address"
+            aria-controls="edit-order"
             onClick={() => {
               setEditing((open) => !open);
               setAddressStatus("");
@@ -258,7 +259,9 @@ function Details({
       </div>
 
       {editable && editing && (
-        <div id="edit-delivery-address">
+        <div id="edit-order">
+          {/* Each item saves on its own; the panel stays open so others can be changed too. */}
+          <EditOrderItems order={order} onUpdated={onOrderChange} />
           <EditDeliveryAddress
             order={order}
             locations={locations}

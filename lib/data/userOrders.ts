@@ -218,6 +218,53 @@ export async function updateOrderAddress(orderNumber: string, addressId: string)
   }
 }
 
+/** What public.update_order_item() returns: one row with the line's new size and quantity and the order's totals. */
+interface UpdatedItemRow {
+  order_number: string;
+  item_id: string;
+}
+
+/**
+ * Changes one line of one of the guest's orders — its UK size and quantity —
+ * through the database function public.update_order_item(). It only allows
+ * that while the order is still "confirmed", checks the size is one the
+ * product offers and the quantity is 1–10, and works the order's subtotal and
+ * total out again from the prices paid. Throws if the database refused or the
+ * request failed; in that case nothing changed.
+ */
+export async function updateOrderItem(
+  orderNumber: string,
+  itemId: string,
+  sizeUK: number,
+  quantity: number,
+): Promise<void> {
+  await ensureGuestSession();
+  const { data, error } = await getSupabaseClient().rpc("update_order_item", {
+    p_order_number: orderNumber,
+    p_item_id: itemId,
+    p_size_uk: sizeUK,
+    p_quantity: quantity,
+  });
+  if (error) {
+    // The function's own refusals, in plain words; its size/quantity messages
+    // (22023) are already written for the customer, so they're kept as they are.
+    const message =
+      error.code === "55000"
+        ? "it has already shipped. Only an order that hasn’t shipped yet can be changed"
+        : error.code === "P0002"
+          ? error.message === "Order item not found"
+            ? "that item isn’t in this order any more"
+            : "this order wasn’t found"
+          : error.message;
+    throw new OrderError("update this item", { message, code: error.code });
+  }
+  // A set-returning function comes back as an array of rows.
+  const rows = (data ?? []) as UpdatedItemRow[];
+  if (rows[0]?.order_number !== orderNumber || rows[0]?.item_id !== itemId) {
+    throw new OrderError("update this item", { message: "the item wasn’t updated" });
+  }
+}
+
 /** What public.cancel_order() returns: one row with the order's new state. */
 interface CancelledOrderRow {
   order_number: string;
