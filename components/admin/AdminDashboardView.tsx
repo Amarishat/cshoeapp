@@ -164,7 +164,7 @@ function SalesOverview({ stats }: { stats: OrderStats | null }) {
     <Panel
       id="sales-overview"
       title="Sales overview"
-      subtitle="Revenue per day, last 30 days"
+      subtitle="Revenue per day, last 30 days, excluding cancelled orders"
       className="mt-4 sm:mt-6"
       loading={!stats}
       aside={
@@ -187,7 +187,7 @@ function SalesOverview({ stats }: { stats: OrderStats | null }) {
       ) : (
         <>
           {orders === 0 && (
-            <p className="text-secondary text-ink/60">No orders in the last 30 days — every day below is empty.</p>
+            <p className="text-secondary text-ink/60">No sales in the last 30 days — every day below is empty.</p>
           )}
           <ColumnChart
             points={toColumnPoints(days)}
@@ -316,8 +316,16 @@ export function AdminDashboardView() {
             <div className={cn("grid grid-cols-1 gap-3 min-[431px]:grid-cols-2 sm:gap-4 xl:grid-cols-4", !stats && "animate-pulse")}>
               {stats ? (
                 <>
-                  <Kpi label="Revenue" value={formatPrice(stats.totalRevenue)} note="Order totals, incl. fees" />
-                  <Kpi label="Orders" value={stats.totalOrders.toLocaleString("en-IN")} />
+                  <Kpi
+                    label="Revenue"
+                    value={formatPrice(stats.totalRevenue)}
+                    note="Order totals incl. fees, excl. cancelled"
+                  />
+                  <Kpi
+                    label="Orders"
+                    value={stats.totalOrders.toLocaleString("en-IN")}
+                    note={stats.cancelledOrders > 0 ? `Incl. ${stats.cancelledOrders.toLocaleString("en-IN")} cancelled` : undefined}
+                  />
                   <Kpi label="Average order value" value={formatPrice(stats.averageOrderValue)} />
                   <Kpi label="Units sold" value={stats.unitsSold.toLocaleString("en-IN")} />
                 </>

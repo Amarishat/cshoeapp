@@ -5,8 +5,10 @@ import type { OrderStatus } from "@/lib/types";
  * Pure functions only: no fetching, and "now" is always passed in, so the
  * same rows always give the same numbers. Money is whole rupees, as stored.
  *
- * Every order counts — the schema has no cancelled or refunded status — and
- * revenue is the order total (items plus delivery and platform fees).
+ * Revenue is the order total (items plus delivery and platform fees).
+ * Cancelled orders are real orders, so they count towards the order total and
+ * the status breakdown, but they sold nothing: revenue, average order value,
+ * units, the 30-day timeline and top products leave them out.
  */
 
 /** One order line, as the dashboard reads it. */
@@ -47,24 +49,40 @@ export interface TopProduct {
 }
 
 export interface OrderStats {
+  /** Excludes cancelled orders. */
   totalRevenue: number;
+  /** Every order, cancelled ones included. */
   totalOrders: number;
-  /** Rounded to whole rupees; 0 when there are no orders. */
+  /** How many of totalOrders are cancelled. */
+  cancelledOrders: number;
+  /** Revenue per order that wasn't cancelled, rounded to whole rupees; 0 when there are none. */
   averageOrderValue: number;
+  /** Excludes cancelled orders. */
   unitsSold: number;
-  /** Oldest day first, one entry per day — days without orders are zeros. */
+  /** Oldest day first, one entry per day — days without orders are zeros. Excludes cancelled orders. */
   last30Days: DailySales[];
-  /** Every status, in fulfilment order, including those with no orders. */
+  /** Every status, in fulfilment order then "cancelled", including those with no orders. */
   statusBreakdown: StatusCount[];
-  /** Up to 5, most units first. */
+  /** Up to 5, most units first. Excludes cancelled orders. */
   topProducts: TopProduct[];
-  /** Units on customised vs standard lines. */
+  /** Units on customised vs standard lines. Excludes cancelled orders. */
   customizedUnits: number;
   standardUnits: number;
 }
 
-/** Statuses in fulfilment order. */
-export const ORDER_STATUSES: readonly OrderStatus[] = ["confirmed", "shipped", "out_for_delivery", "delivered"];
+/** Statuses in fulfilment order, then "cancelled" (which ends an order off that path). */
+export const ORDER_STATUSES: readonly OrderStatus[] = [
+  "confirmed",
+  "shipped",
+  "out_for_delivery",
+  "delivered",
+  "cancelled",
+];
+
+/** The orders that count as sales: every order except cancelled ones. */
+export function salesOrders(orders: readonly StatsOrder[]): StatsOrder[] {
+  return orders.filter((order) => order.status !== "cancelled");
+}
 
 /** How many days the sales timeline covers, today included. */
 export const TIMELINE_DAYS = 30;
@@ -134,28 +152,33 @@ export function topProducts(orders: readonly StatsOrder[], limit = TOP_PRODUCTS)
     .slice(0, limit);
 }
 
-/** Every dashboard figure from the given orders; `now` sets the 30-day window. */
+/**
+ * Every dashboard figure from the given orders; `now` sets the 30-day window.
+ * Sales figures come from the orders that weren't cancelled; the order count
+ * and status breakdown use them all.
+ */
 export function computeOrderStats(orders: readonly StatsOrder[], now: Date): OrderStats {
+  const sales = salesOrders(orders);
   let totalRevenue = 0;
   let customizedUnits = 0;
   let standardUnits = 0;
-  for (const order of orders) {
+  for (const order of sales) {
     totalRevenue += order.total;
     for (const item of order.items) {
       if (item.isCustomized) customizedUnits += item.quantity;
       else standardUnits += item.quantity;
     }
   }
-  const totalOrders = orders.length;
 
   return {
     totalRevenue,
-    totalOrders,
-    averageOrderValue: totalOrders === 0 ? 0 : Math.round(totalRevenue / totalOrders),
+    totalOrders: orders.length,
+    cancelledOrders: orders.length - sales.length,
+    averageOrderValue: sales.length === 0 ? 0 : Math.round(totalRevenue / sales.length),
     unitsSold: customizedUnits + standardUnits,
-    last30Days: dailySales(orders, now),
+    last30Days: dailySales(sales, now),
     statusBreakdown: statusBreakdown(orders),
-    topProducts: topProducts(orders),
+    topProducts: topProducts(sales),
     customizedUnits,
     standardUnits,
   };
