@@ -22,14 +22,35 @@ type SizesState =
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
+/** The order as the database holds it now; null if it can't be read. */
+async function rereadOrder(orderNumber: string): Promise<Order | null> {
+  try {
+    return await getOrderByNumber(orderNumber);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Changing the size and quantity of a confirmed order's lines (Order Details →
  * Edit Order). One editor per line, each saved on its own through
  * public.update_order_item(), which checks the size and quantity and works the
  * order's totals out again. After a save the order is read again and handed
- * to `onUpdated`, and the editors start again from the fresh lines.
+ * to `onUpdated`, and the editors start again from the fresh lines. When a
+ * save is refused, the order is read again too and handed to `onRefused` with
+ * the message (the line also keeps showing it), so controls that no longer
+ * apply — e.g. once the order has shipped — go away.
  */
-export function EditOrderItems({ order, onUpdated }: { order: Order; onUpdated: (order: Order) => void }) {
+export function EditOrderItems({
+  order,
+  onUpdated,
+  onRefused,
+}: {
+  order: Order;
+  onUpdated: (order: Order) => void;
+  /** A save was refused: the order as re-read (null if it couldn't be), and why. */
+  onRefused: (fresh: Order | null, message: string) => void;
+}) {
   const [system, setSystem] = useState<SizeSystem>("uk");
   const [sizes, setSizes] = useState<SizesState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -103,6 +124,7 @@ export function EditOrderItems({ order, onUpdated }: { order: Order; onUpdated: 
               setUpdatedId(line.bagItemId);
               onUpdated(fresh);
             }}
+            onRefused={onRefused}
           />
         ))}
       </ul>
@@ -119,6 +141,7 @@ function LineEditor({
   justUpdated,
   onEdit,
   onSaved,
+  onRefused,
 }: {
   order: Order;
   line: OrderLine;
@@ -128,6 +151,7 @@ function LineEditor({
   justUpdated: boolean;
   onEdit: () => void;
   onSaved: (fresh: Order) => void;
+  onRefused: (fresh: Order | null, message: string) => void;
 }) {
   const currentSize = parseSizeUK(line.size);
   const [draftSize, setDraftSize] = useState<number | null>(currentSize);
@@ -164,7 +188,9 @@ function LineEditor({
       if (!fresh) throw new Error("The item was updated, but the order couldn’t be read again. Reload the page.");
       onSaved(fresh);
     } catch (thrown) {
-      setError(messageOf(thrown));
+      const message = messageOf(thrown);
+      setError(message);
+      onRefused(await rereadOrder(order.id), message);
     } finally {
       setSaving(false);
     }

@@ -61,6 +61,14 @@ export function OrdersView({ initialQuery = "" }: { initialQuery?: string }) {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setCancelErrors((errors) => ({ ...errors, [order.id]: message }));
+      // Refused (e.g. it has shipped since this list was loaded): show the order as it is now,
+      // so its Cancel button goes away. The error above stays with the order.
+      try {
+        const fresh = await getOrderByNumber(order.id);
+        if (fresh) setUpdated((orders) => ({ ...orders, [order.id]: fresh }));
+      } catch {
+        // Couldn't re-read it: the error is still shown, and a reload shows the real state.
+      }
     } finally {
       setCancelling(null);
     }

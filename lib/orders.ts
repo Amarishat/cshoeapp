@@ -80,9 +80,11 @@ export function cancelledLabel(order: Order): string {
 }
 
 /**
- * Tracker steps for an order, derived from its status. A cancelled order
- * shows confirmed → cancelled instead of the delivery steps; shipped and
- * delivered dates will come from real tracking later.
+ * Tracker steps for an order (My Orders card), derived from its status. A
+ * cancelled order shows confirmed → cancelled instead of the delivery steps.
+ * The middle step reads "Out for Delivery" once the order is out for
+ * delivery, so it's told apart from just shipped. Shipped and delivered dates
+ * will come from real tracking later.
  */
 export function orderProgress(order: Order): ProgressStep[] {
   if (order.status === "cancelled") {
@@ -94,7 +96,10 @@ export function orderProgress(order: Order): ProgressStep[] {
   const rank = statusRank[order.status];
   return [
     { label: "Order Confirmed", done: true, date: formatOrderDate(order.createdAt) },
-    { label: "Shipped", done: rank >= statusRank.shipped },
+    {
+      label: order.status === "out_for_delivery" ? "Out for Delivery" : "Shipped",
+      done: rank >= statusRank.shipped,
+    },
     { label: "Delivered", done: rank >= statusRank.delivered },
   ];
 }
@@ -104,29 +109,50 @@ export function formatShortOrderDate(iso: string): string {
   return formatEventDate(iso);
 }
 
+/** How an order's status reads: still on its way, delivered, or cancelled. */
+export type OrderStatusTone = "progress" | "delivered" | "cancelled";
+
 /**
- * Status-specific content for Order Details. A cancelled order has no arrival
- * date; the completed (delivered) variant from Figma 1:3715 can be added here
- * later.
+ * Status-specific content for Order Details and the My Orders card.
+ * Confirmed keeps the V1 "In Progress" wording; shipped and out for delivery
+ * name their stage; delivered is the completed variant from Figma 1:3715
+ * ("Completed Orders", "Delivered", no arrival date — there is no stored
+ * delivery date, so none is shown); cancelled has no arrival date either.
  */
 export function orderStatusView(order: Order): {
   sectionTitle: string;
   label: string;
   showArrival: boolean;
   cancelled: boolean;
+  tone: OrderStatusTone;
 } {
+  const inProgress = { sectionTitle: "In Progress Orders", showArrival: true, cancelled: false, tone: "progress" } as const;
   switch (order.status) {
     case "cancelled":
-      return { sectionTitle: "Cancelled Order", label: cancelledLabel(order), showArrival: false, cancelled: true };
-    case "confirmed":
-    case "shipped":
-    case "out_for_delivery":
+      return {
+        sectionTitle: "Cancelled Order",
+        label: cancelledLabel(order),
+        showArrival: false,
+        cancelled: true,
+        tone: "cancelled",
+      };
     case "delivered":
-      return { sectionTitle: "In Progress Orders", label: "In Progress", showArrival: true, cancelled: false };
+      return { sectionTitle: "Completed Orders", label: "Delivered", showArrival: false, cancelled: false, tone: "delivered" };
+    case "out_for_delivery":
+      return { ...inProgress, label: "Out for delivery" };
+    case "shipped":
+      return { ...inProgress, label: "Shipped" };
+    case "confirmed":
+      return { ...inProgress, label: "In Progress" };
   }
 }
 
-/** Vertical tracker steps for Order Details (Figma 1:3892); confirmed → cancelled for a cancelled order. */
+/**
+ * Vertical tracker steps for Order Details (Figma 1:3892). Confirmed, then
+ * each stage reached (shipped, out for delivery), then the expected delivery
+ * still to come. A delivered order shows confirmed → delivered (Figma 1:3715)
+ * and a cancelled one confirmed → cancelled — neither with a future date.
+ */
 export function orderDetailProgress(order: Order, expectedDelivery: string): ProgressStep[] {
   const steps: ProgressStep[] = [
     { label: `Order Confirmed, ${formatShortOrderDate(order.createdAt)}`, done: true },
@@ -138,9 +164,14 @@ export function orderDetailProgress(order: Order, expectedDelivery: string): Pro
     });
     return steps;
   }
+  if (order.status === "delivered") {
+    steps.push({ label: "Delivered", done: true });
+    return steps;
+  }
   const rank = statusRank[order.status];
   if (rank >= statusRank.shipped) steps.push({ label: "Shipped", done: true });
-  steps.push({ label: `Expected Delivery, ${expectedDelivery}`, done: rank >= statusRank.delivered });
+  if (rank >= statusRank.out_for_delivery) steps.push({ label: "Out for delivery", done: true });
+  steps.push({ label: `Expected Delivery, ${expectedDelivery}`, done: false });
   return steps;
 }
 

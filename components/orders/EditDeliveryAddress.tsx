@@ -11,17 +11,22 @@ import type { LocationState, Order } from "@/lib/types";
  * in its own-selection mode, so checkout's selected address is never touched.
  * "Update Delivery Address" asks public.update_order_address() to copy the
  * chosen address into the order, then reads the order again and hands the
- * fresh copy to `onUpdated`.
+ * fresh copy to `onUpdated`. When the change is refused, the order is read
+ * again too and handed to `onRefused` with the message (shown here as well),
+ * so controls that no longer apply go away.
  */
 export function EditDeliveryAddress({
   order,
   locations,
   onUpdated,
+  onRefused,
   onClose,
 }: {
   order: Order;
   locations: LocationState[];
   onUpdated: (order: Order) => void;
+  /** The change was refused: the order as re-read (null if it couldn't be), and why. */
+  onRefused: (fresh: Order | null, message: string) => void;
   onClose: () => void;
 }) {
   // The order's current address, if it still has one (it's null once that address was deleted).
@@ -39,7 +44,15 @@ export function EditDeliveryAddress({
       if (!fresh) throw new Error("The address was changed, but the order couldn’t be read again. Reload the page.");
       onUpdated(fresh);
     } catch (thrown) {
-      setError(thrown instanceof Error ? thrown.message : String(thrown));
+      const message = thrown instanceof Error ? thrown.message : String(thrown);
+      setError(message);
+      let fresh: Order | null = null;
+      try {
+        fresh = await getOrderByNumber(order.id);
+      } catch {
+        // Couldn't re-read it: the error is still shown here.
+      }
+      onRefused(fresh, message);
     } finally {
       setSaving(false);
     }

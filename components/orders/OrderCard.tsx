@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
-import { arrivingByLabel, cancelledLabel, orderProgress } from "@/lib/orders";
+import { arrivingByLabel, cancelledLabel, orderProgress, orderStatusView } from "@/lib/orders";
 import type { Order } from "@/lib/types";
 import { OrderProgress } from "./OrderProgress";
 
@@ -11,8 +11,9 @@ const button = "flex h-11 items-center justify-center rounded-[7px] text-[15px] 
  * One order (Figma 1:3672 – 1:3703): tracker, primary item (first line) with
  * "+N more items", arrival estimate, and Cancel / View Order. Cancel is a real
  * action only while the order is "confirmed" (`onCancel`, which asks for
- * confirmation first); a cancelled order shows when it was cancelled instead
- * of an arrival date, and only View Order.
+ * confirmation first). A delivered order reads as completed ("Completed
+ * Order", "Delivered", Figma 1:3715) and a cancelled one shows when it was
+ * cancelled — neither with an arrival date, and both with only View Order.
  */
 export function OrderCard({
   order,
@@ -28,7 +29,10 @@ export function OrderCard({
 }) {
   const [first, ...rest] = order.lines;
   const size = first.size.replace(/^UK /, "");
-  const cancelled = order.status === "cancelled";
+  const { tone } = orderStatusView(order);
+  const cancelled = tone === "cancelled";
+  // Delivered and cancelled orders are finished: no Cancel, just View Order.
+  const finished = tone !== "progress";
   const cancellable = order.status === "confirmed";
 
   return (
@@ -49,7 +53,9 @@ export function OrderCard({
           />
         </div>
         <div className="min-w-0">
-          <h3 className="text-[17px] font-semibold">{cancelled ? "Cancelled Order" : "In Progress Order"}</h3>
+          <h3 className="text-[17px] font-semibold">
+            {cancelled ? "Cancelled Order" : tone === "delivered" ? "Completed Order" : "In Progress Order"}
+          </h3>
           <p className="mt-px truncate text-secondary font-medium text-ink/30">{first.name}</p>
           {rest.length > 0 && (
             <p className="text-[14px] font-medium text-ink/50">
@@ -59,6 +65,8 @@ export function OrderCard({
           <p className="mt-[3px] text-[15px] font-medium text-ink/90">Size : {size}</p>
           {cancelled ? (
             <p className="mt-[3px] text-secondary font-medium text-danger">{cancelledLabel(order)}</p>
+          ) : tone === "delivered" ? (
+            <p className="mt-[3px] text-secondary font-medium text-success">Delivered</p>
           ) : (
             <p className="mt-[3px] text-secondary font-medium text-success">{arrivingByLabel(order.createdAt)}</p>
           )}
@@ -77,7 +85,7 @@ export function OrderCard({
             {cancelling ? "Cancelling…" : "Cancel"}
           </button>
         ) : (
-          !cancelled && (
+          !finished && (
             // Past "confirmed" the order has shipped and can no longer be cancelled.
             <div aria-disabled="true" className={cn(button, "border border-border bg-white text-ink/40")}>
               Cancel
@@ -87,7 +95,7 @@ export function OrderCard({
         )}
         <Link
           href={`/orders/${order.id}`}
-          className={cn(button, "bg-primary text-white", cancelled && "col-span-2")}
+          className={cn(button, "bg-primary text-white", finished && "col-span-2")}
         >
           View Order
         </Link>

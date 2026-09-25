@@ -173,6 +173,14 @@ function Details({
   const editable = order.status === "confirmed";
   const [editing, setEditing] = useState(false);
   const [addressStatus, setAddressStatus] = useState("");
+  // Why the last change was refused, kept here too: if the order has moved on
+  // (e.g. shipped) the edit panel closes, and this is where the message stays.
+  const [refusal, setRefusal] = useState("");
+
+  function onRefused(fresh: Order | null, message: string) {
+    if (fresh) onOrderChange(fresh);
+    if (!fresh || fresh.status !== "confirmed") setRefusal(message);
+  }
   const shippingRef = useRef<HTMLElement>(null);
   const pairs = order.lines.reduce((sum, line) => sum + line.quantity, 0);
   const app = upiApps.find((a) => a.id === order.payment.app);
@@ -201,7 +209,12 @@ function Details({
 
         {/* Status, arrival and every line of this order */}
         <div className="px-gutter pt-6 pb-[21px]">
-          <p className={cn("text-[17px] font-medium", status.cancelled ? "text-danger" : "text-[#fba627]")}>
+          <p
+            className={cn(
+              "text-[17px] font-medium",
+              status.tone === "cancelled" ? "text-danger" : status.tone === "delivered" ? "text-success" : "text-[#fba627]",
+            )}
+          >
             {status.label}
           </p>
           {status.showArrival && <p className="mt-1 text-[17px]">{arrivingByLabel(order.createdAt)}</p>}
@@ -243,6 +256,7 @@ function Details({
             onClick={() => {
               setEditing((open) => !open);
               setAddressStatus("");
+              setRefusal("");
             }}
             className="flex flex-col items-center justify-center gap-1 border-r border-[#d9d9d9] text-[17px] font-medium"
           >
@@ -258,13 +272,20 @@ function Details({
         </SoonAction>
       </div>
 
+      {refusal && (
+        <p role="alert" className="mt-4 px-gutter text-[15px] text-danger [overflow-wrap:anywhere]">
+          {refusal}
+        </p>
+      )}
+
       {editable && editing && (
         <div id="edit-order">
           {/* Each item saves on its own; the panel stays open so others can be changed too. */}
-          <EditOrderItems order={order} onUpdated={onOrderChange} />
+          <EditOrderItems order={order} onUpdated={onOrderChange} onRefused={onRefused} />
           <EditDeliveryAddress
             order={order}
             locations={locations}
+            onRefused={onRefused}
             onClose={() => setEditing(false)}
             onUpdated={(fresh) => {
               onOrderChange(fresh);
