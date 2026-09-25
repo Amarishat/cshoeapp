@@ -3,8 +3,9 @@ import { cn } from "@/lib/cn";
 import type { TrackStep } from "@/lib/orders";
 
 /**
- * Track Order timeline (Figma 1:4176): 27px line-md:confirm-circle icons
- * (pending at 50%), 17px gap to the text, 2px connectors — black into
+ * Track Order timeline (Figma 1:4176): 27px line-md:confirm-circle icons for
+ * completed steps; steps not reached yet show the same circle, empty, at 50%.
+ * 17px gap to the text, 2px connectors — black into
  * completed steps, #CCC at 70% into pending ones. Step title Medium 17 with
  * its date (Regular 17, 50%) inline; events Regular 15 with a 50% timestamp.
  */

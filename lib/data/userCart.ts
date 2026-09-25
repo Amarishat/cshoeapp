@@ -26,6 +26,14 @@ interface CartRow {
 
 const COLUMNS = "id, product_id, size_uk, quantity, is_selected, customization, created_at";
 
+/**
+ * Most pairs of one Bag item (the quantity steppers stop here). The database
+ * enforces the same limit (021), so checkout can't order more either.
+ */
+export const MAX_CART_QUANTITY = 10;
+
+const overLimit = { message: `you can have at most ${MAX_CART_QUANTITY} of one item in your bag` };
+
 export class CartError extends Error {
   /** Postgres/PostgREST error code, when there is one. */
   code?: string;
@@ -69,12 +77,18 @@ export async function listCart(): Promise<CartItem[]> {
   return data.map(toCartItem);
 }
 
-/** Friendlier message for the "size doesn't exist for this product" foreign-key error. */
+/**
+ * Friendlier messages for the database's refusals: a size the product doesn't
+ * have (foreign key, 23503) and more than MAX_CART_QUANTITY (check, 23514).
+ */
+function friendly(error: { message: string; code?: string }) {
+  if (error.code === "23503") return { message: "this size isn’t available for this product", code: error.code };
+  if (error.code === "23514") return { ...overLimit, code: error.code };
+  return error;
+}
+
 function addError(error: { message: string; code?: string }) {
-  return new CartError(
-    "add to your bag",
-    error.code === "23503" ? { message: "this size isn’t available for this product", code: error.code } : error,
-  );
+  return new CartError("add to your bag", friendly(error));
 }
 
 async function incrementPlainItem(userId: string, productId: string, sizeUK: number, quantity: number) {
@@ -90,12 +104,18 @@ async function incrementPlainItem(userId: string, productId: string, sizeUK: num
     .overrideTypes<{ id: string; quantity: number } | null, { merge: false }>();
   if (findError) throw new CartError("add to your bag", findError);
   if (!existing) return false;
+  // Adding to what's already in the Bag may not take it past the limit.
+  if (existing.quantity + quantity > MAX_CART_QUANTITY) {
+    throw new CartError("add to your bag", {
+      message: `${overLimit.message} (it already has ${existing.quantity})`,
+    });
+  }
   const { error } = await client
     .from("cart_items")
     .update({ quantity: existing.quantity + quantity })
     .eq("user_id", userId)
     .eq("id", existing.id);
-  if (error) throw new CartError("add to your bag", error);
+  if (error) throw addError(error);
   return true;
 }
 
@@ -107,6 +127,7 @@ export async function addCartItem(item: Pick<CartItem, "productId" | "size" | "q
   const sizeUK = parseSizeUK(item.size);
   if (sizeUK === null) throw new CartError("add to your bag", { message: `"${item.size}" isn’t a UK size` });
   if (item.quantity < 1) throw new CartError("add to your bag", { message: "quantity must be at least 1" });
+  if (item.quantity > MAX_CART_QUANTITY) throw new CartError("add to your bag", overLimit);
   const userId = await currentUserId();
   const customization = item.customization && Object.keys(item.customization).length > 0 ? item.customization : null;
 
@@ -132,7 +153,7 @@ async function updateRows(action: string, values: Record<string, unknown>, ids: 
   let query = getSupabaseClient().from("cart_items").update(values).eq("user_id", userId);
   if (ids !== "all") query = query.in("id", ids);
   const { error } = await query;
-  if (error) throw new CartError(action, error);
+  if (error) throw new CartError(action, friendly(error));
 }
 
 /**
@@ -165,6 +186,7 @@ export async function setCartQuantity(id: string, quantity: number) {
   if (!Number.isInteger(quantity) || quantity < 1) {
     throw new CartError("change the quantity", { message: "quantity must be at least 1" });
   }
+  if (quantity > MAX_CART_QUANTITY) throw new CartError("change the quantity", overLimit);
   await updateRows("change the quantity", { quantity }, [id]);
 }
 

@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { cn } from "@/lib/cn";
 import { getCustomizationConfig } from "@/lib/data/supabaseCatalog";
+import { MAX_CART_QUANTITY } from "@/lib/data/userCart";
 import { formatPrice, isSelected } from "@/lib/pricing";
 import type { BagProduct, CartItem, CustomizationSelection } from "@/lib/types";
 import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
@@ -105,11 +106,16 @@ export function BagItemRow({
           <div role="group" aria-labelledby={`qty-${item.id}`}>
             <QtyStepper
               value={item.quantity}
+              max={MAX_CART_QUANTITY}
               onChange={onQuantityChange}
               onRemoveRequest={onRemoveRequest}
             />
           </div>
         </div>
+        {/* Why "+" has stopped. */}
+        {item.quantity >= MAX_CART_QUANTITY && (
+          <p className="mt-1 ml-[29px] text-caption text-ink/50">Maximum {MAX_CART_QUANTITY}</p>
+        )}
       </div>
 
       <div className={cn("min-w-0", !customised && "pt-[43px]")}>
