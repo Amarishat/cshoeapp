@@ -41,9 +41,11 @@ const STATUS_OPTIONS = [
 type StatusFilter = (typeof STATUS_OPTIONS)[number]["value"];
 
 /**
- * Orders — read-only list of public.orders, newest first. Nothing here
- * creates, edits or cancels an order; orders are written only by
- * place_order().
+ * Orders — read-only list of public.orders, newest first. Nothing on this
+ * screen writes an order. Orders are written in three places elsewhere:
+ * place_order() creates them, an admin changes an order's status on its
+ * detail page (AdminOrderDetail, the admin-only policy from 009), and a
+ * customer cancels their own confirmed order through cancel_order() (012).
  */
 export function AdminOrdersView() {
   const { state, retry } = useCatalogueLoad(loadAdminOrders);
