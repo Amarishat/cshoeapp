@@ -7,6 +7,7 @@ import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { SelectField } from "@/components/ui/SelectField";
 import { cn } from "@/lib/cn";
 import {
+  ADMIN_STATUS_TRANSITIONS,
   getAdminOrder,
   updateAdminOrderStatus,
   type AdminOrderDetail as Order,
@@ -25,14 +26,10 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
   cancelled: "Cancelled",
 };
 
-/**
- * Every value public.order_status allows: the four delivery steps in the order
- * they happen, then "cancelled" (012), which ends an order off that path.
- */
-const STATUS_ORDER: OrderStatus[] = ["confirmed", "shipped", "out_for_delivery", "delivered", "cancelled"];
-
 /** The label shown in the dropdown, back to the value stored in the column. */
-const STATUS_BY_LABEL = new Map(STATUS_ORDER.map((status) => [STATUS_LABEL[status], status]));
+const STATUS_BY_LABEL = new Map(
+  (Object.keys(STATUS_LABEL) as OrderStatus[]).map((status) => [STATUS_LABEL[status], status]),
+);
 
 function StatusPill({ status }: { status: OrderStatus }) {
   return (
@@ -47,36 +44,54 @@ function StatusPill({ status }: { status: OrderStatus }) {
   );
 }
 
+const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 /**
- * The one thing this screen can change. Only the status column is sent, and
- * only an admin's update passes the policy (009); anyone else is told so.
+ * The one thing this screen can change, through public.admin_set_order_status()
+ * (016): it sends the status shown here as the expected one, so a change the
+ * customer (or another admin) made since the order was loaded is refused
+ * rather than overwritten. Only the valid next statuses are offered; delivered
+ * and cancelled orders are final. After every attempt — saved or refused —
+ * the order is read again (`reload`), so the screen never keeps a stale status.
  */
 function StatusControl({
   orderNumber,
   status,
-  onChange,
+  reload,
 }: {
   orderNumber: string;
+  /** The status as last read from the database. */
   status: OrderStatus;
-  onChange: (status: OrderStatus) => void;
+  reload: () => Promise<void>;
 }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const next = ADMIN_STATUS_TRANSITIONS[status];
+  const final = next.length === 0;
 
-  async function save(next: OrderStatus) {
-    if (saving || next === status) return;
+  async function save(to: OrderStatus) {
+    if (saving || to === status) return;
     setSaving(true);
     setSaved(false);
     setError("");
+    let failure = "";
     try {
-      onChange(await updateAdminOrderStatus(orderNumber, next));
-      setSaved(true);
+      await updateAdminOrderStatus(orderNumber, status, to);
     } catch (thrown) {
-      setError(thrown instanceof Error ? thrown.message : String(thrown));
-    } finally {
-      setSaving(false);
+      failure = messageOf(thrown);
     }
+    // Saved or not, show what the database now holds.
+    try {
+      await reload();
+    } catch (thrown) {
+      failure = failure
+        ? `${failure} The order couldn’t be reloaded: ${messageOf(thrown)}`
+        : `The status was updated, but the order couldn’t be reloaded: ${messageOf(thrown)}`;
+    }
+    setError(failure);
+    setSaved(!failure);
+    setSaving(false);
   }
 
   return (
@@ -85,15 +100,21 @@ function StatusControl({
         label="Status"
         className="max-w-[280px]"
         placeholder={STATUS_LABEL[status]}
-        options={STATUS_ORDER.map((value) => STATUS_LABEL[value])}
+        // The current status first, then only the moves the database allows from it.
+        options={[status, ...next].map((value) => STATUS_LABEL[value])}
         value={STATUS_LABEL[status]}
-        disabled={saving}
+        disabled={saving || final}
         aria-describedby="status-note"
         onChange={(event) => {
-          const next = STATUS_BY_LABEL.get(event.target.value);
-          if (next) void save(next);
+          const to = STATUS_BY_LABEL.get(event.target.value);
+          if (to) void save(to);
         }}
       />
+      {final && (
+        <p className="mt-2 text-secondary text-ink/60">
+          {status === "cancelled" ? "Cancelled" : "Delivered"} orders are final; their status can’t be changed.
+        </p>
+      )}
       <p role="status" className="mt-2 text-secondary text-ink/60">
         {saving ? "Saving…" : saved && !error ? "Status updated" : ""}
       </p>
@@ -169,6 +190,15 @@ function Total({ label, value, strong }: { label: string; value: string; strong?
  */
 export function AdminOrderDetail({ orderNumber }: { orderNumber: string }) {
   const { state, retry } = useCatalogueLoad(getAdminOrder, orderNumber);
+  // The order as read again after a status change, shown instead of the first load.
+  const [fresh, setFresh] = useState<Order | null>(null);
+
+  /** Reads the order again from the database; throws if it can't. */
+  async function reload() {
+    const order = await getAdminOrder(orderNumber);
+    if (!order) throw new Error("it is no longer visible to this account.");
+    setFresh(order);
+  }
 
   if (state.status === "loading") {
     return (
@@ -186,7 +216,8 @@ export function AdminOrderDetail({ orderNumber }: { orderNumber: string }) {
       </div>
     );
   }
-  if (!state.data) {
+  const order = fresh?.orderNumber === orderNumber ? fresh : state.data;
+  if (!order) {
     return (
       <div className="max-w-[900px]">
         <h1 className="text-heading font-semibold">Order not found</h1>
@@ -199,11 +230,11 @@ export function AdminOrderDetail({ orderNumber }: { orderNumber: string }) {
       </div>
     );
   }
-  return <Detail order={state.data} />;
+  return <Detail order={order} reload={reload} />;
 }
 
-function Detail({ order }: { order: Order }) {
-  const [status, setStatus] = useState<OrderStatus>(order.status);
+function Detail({ order, reload }: { order: Order; reload: () => Promise<void> }) {
+  const status = order.status;
 
   return (
     <div className="max-w-[900px]">
@@ -216,7 +247,7 @@ function Detail({ order }: { order: Order }) {
       </div>
       <p className="mt-2 text-secondary text-ink/60">Placed {formatEventDate(order.createdAt)}</p>
 
-      <StatusControl orderNumber={order.orderNumber} status={status} onChange={setStatus} />
+      <StatusControl orderNumber={order.orderNumber} status={status} reload={reload} />
       <p id="status-note" className="mt-2 max-w-[420px] text-caption text-ink/50">
         Changing this updates only the order’s status — the items, totals and shipping details
         stay exactly as they were placed.

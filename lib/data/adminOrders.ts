@@ -216,30 +216,70 @@ export async function getAdminOrder(orderNumber: string): Promise<AdminOrderDeta
 // ---------------------------------------------------------------------------
 
 /**
- * Moves an order to `status` and returns the stored value.
- *
- * Only the status column is sent, and only that column is granted to
- * authenticated (009) — the totals and the shipping snapshot can't be touched
- * from here even by an admin. A non-admin matches no row under the policy, so
- * PostgREST answers 200 with an empty body rather than an error; that is why
- * the updated row is selected back and a missing row is treated as a refusal.
+ * The status changes public.admin_set_order_status() (016) allows, from each
+ * status: forward along fulfilment, or cancelling before shipping. Delivered
+ * and cancelled are final. Mirrors the database so the screen only offers
+ * moves it will accept; the database still decides.
+ */
+export const ADMIN_STATUS_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
+  confirmed: ["shipped", "cancelled"],
+  shipped: ["out_for_delivery"],
+  out_for_delivery: ["delivered"],
+  delivered: [],
+  cancelled: [],
+};
+
+/** A refused or failed status change, with the database's error code when there is one. */
+export class AdminOrderStatusError extends Error {
+  code?: string;
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = "AdminOrderStatusError";
+    this.code = code;
+  }
+}
+
+/** What admin_set_order_status() returns: one row with the order's new state. */
+interface StatusRow {
+  order_number: string;
+  status: OrderStatus;
+  cancelled_at: string | null;
+}
+
+/**
+ * Moves an order from `expectedStatus` (the status the admin was looking at)
+ * to `newStatus` through public.admin_set_order_status(). The database locks
+ * the order, refuses if its status has changed since it was loaded, allows
+ * only the moves in ADMIN_STATUS_TRANSITIONS, and admits admins only. Nothing
+ * here writes to public.orders directly. Returns the stored status and
+ * cancellation time; throws AdminOrderStatusError if refused.
  */
 export async function updateAdminOrderStatus(
   orderNumber: string,
-  status: OrderStatus,
-): Promise<OrderStatus> {
-  const { data, error } = await getAdminSupabaseClient()
-    .from("orders")
-    .update({ status })
-    .eq("order_number", orderNumber)
-    .select("status")
-    .maybeSingle()
-    .overrideTypes<{ status: OrderStatus } | null, { merge: false }>();
-  if (error) throw new AdminOrderError(`update order ${orderNumber}`, error);
-  if (!data) {
-    throw new AdminOrderError(`update order ${orderNumber}`, {
-      message: "the database refused the change. Only an admin account can set an order's status.",
-    });
+  expectedStatus: OrderStatus,
+  newStatus: OrderStatus,
+): Promise<{ status: OrderStatus; cancelledAt: string | null }> {
+  const { data, error } = await getAdminSupabaseClient().rpc("admin_set_order_status", {
+    p_order_number: orderNumber,
+    p_expected_status: expectedStatus,
+    p_new_status: newStatus,
+  });
+  if (error) {
+    const message =
+      error.code === "55000"
+        ? "This order changed since you loaded it. Reload and try again."
+        : error.code === "P0002"
+          ? "Order not found."
+          : error.code === "42501"
+            ? "Only an admin can change an order’s status."
+            : // 22023 (no change, or a move that isn't allowed) is already written for people; anything else as it came.
+              error.message;
+    throw new AdminOrderStatusError(message, error.code);
   }
-  return data.status;
+  // A set-returning function comes back as an array of rows.
+  const row = ((data ?? []) as StatusRow[])[0];
+  if (row?.order_number !== orderNumber) {
+    throw new AdminOrderStatusError(`The status of order ${orderNumber} wasn’t updated.`);
+  }
+  return { status: row.status, cancelledAt: row.cancelled_at };
 }
