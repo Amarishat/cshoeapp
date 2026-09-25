@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { useCheckoutStore } from "@/lib/store/checkout";
 import { validateAddress, type AddressErrors } from "@/lib/validation/address";
-import type { AddressInput, LocationState } from "@/lib/types";
+import type { Address, AddressInput, LocationState } from "@/lib/types";
 import { AddressCard } from "./AddressCard";
 import { AddressForm, emptyAddress } from "./AddressForm";
 import { useSavedAddresses } from "./useSavedAddresses";
@@ -13,6 +13,8 @@ import { useSavedAddresses } from "./useSavedAddresses";
 export interface AddressSelection {
   selectedId: string | null;
   onSelect: (id: string) => void;
+  /** Called with the saved addresses whenever they (re)load, e.g. after one is added or edited. */
+  onAddresses?: (addresses: Address[]) => void;
 }
 
 /**
@@ -40,6 +42,11 @@ export function AddressManager({
   const checkoutSelect = useCheckoutStore((s) => s.selectAddress);
   const selectedId = selection ? selection.selectedId : checkoutSelectedId;
   const selectAddress = selection ? selection.onSelect : checkoutSelect;
+  const onAddresses = selection?.onAddresses;
+
+  useEffect(() => {
+    if (list.status === "ready") onAddresses?.(list.addresses);
+  }, [list, onAddresses]);
 
   const [form, setForm] = useState<AddressInput>(emptyAddress);
   const [editingId, setEditingId] = useState<string | null>(null);

@@ -13,7 +13,7 @@ import {
   type AdminOrderDetail as Order,
   type AdminOrderLine,
 } from "@/lib/data/adminOrders";
-import { formatEventDate } from "@/lib/orders";
+import { formatEventDate, formatTrackTimestamp } from "@/lib/orders";
 import { formatAmount, formatPrice } from "@/lib/pricing";
 import type { OrderStatus } from "@/lib/types";
 import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
@@ -246,11 +246,20 @@ function Detail({ order, reload }: { order: Order; reload: () => Promise<void> }
         <StatusPill status={status} />
       </div>
       <p className="mt-2 text-secondary text-ink/60">Placed {formatEventDate(order.createdAt)}</p>
+      {status === "cancelled" && (
+        <p className="mt-1 text-secondary font-medium text-danger">
+          Cancelled{" "}
+          {order.cancelledAt ? (
+            <time dateTime={order.cancelledAt}>{formatTrackTimestamp(order.cancelledAt)}</time>
+          ) : (
+            <span className="font-normal text-ink/60">— time not recorded</span>
+          )}
+        </p>
+      )}
 
       <StatusControl orderNumber={order.orderNumber} status={status} reload={reload} />
       <p id="status-note" className="mt-2 max-w-[420px] text-caption text-ink/50">
-        Changing this updates only the order’s status — the items, totals and shipping details
-        stay exactly as they were placed.
+        Changing the status doesn’t change the order’s items, totals or shipping details.
       </p>
 
       {/* Shipping */}
@@ -331,6 +340,25 @@ function Detail({ order, reload }: { order: Order; reload: () => Promise<void> }
           <Total label="Delivery" value={formatAmount(order.deliveryFee)} />
           <Total label="Platform fee" value={formatAmount(order.platformFee)} />
           <Total label="Total" value={formatAmount(order.total)} strong />
+        </div>
+      </section>
+
+      {/* Payment: what was paid at checkout, apart from the current total (customer item edits can change it). */}
+      <section aria-labelledby="payment" className="mt-8 max-w-[380px]">
+        <h2 id="payment" className="text-body font-semibold">
+          Payment
+        </h2>
+        <div className="mt-4 rounded-card border border-border bg-page px-6 py-4 text-label">
+          <Total
+            label="Amount paid"
+            value={order.amountPaid === null ? "Not recorded" : formatAmount(order.amountPaid)}
+          />
+          <Total label="Current order total" value={formatAmount(order.total)} />
+          {order.amountPaid !== null && order.amountPaid !== order.total && (
+            <p className="border-t border-border pt-3 pb-1 text-secondary text-ink/60">
+              Order total changed after payment.
+            </p>
+          )}
         </div>
       </section>
     </div>

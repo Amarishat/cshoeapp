@@ -118,7 +118,12 @@ export interface AdminOrderDetail {
   discount: number;
   deliveryFee: number;
   platformFee: number;
+  /** The current total — item edits by the customer can change it. */
   total: number;
+  /** What was paid at checkout (017); never changes with edits. null only if not recorded. */
+  amountPaid: number | null;
+  /** When the order was cancelled (by the customer or an admin); null if it isn't. */
+  cancelledAt: string | null;
   lines: AdminOrderLine[];
 }
 
@@ -139,6 +144,9 @@ interface AdminOrderDetailRow {
   delivery_fee: number;
   platform_fee: number;
   total: number;
+  /** numeric in the database; may arrive as a string. */
+  amount_paid: number | string | null;
+  cancelled_at: string | null;
   order_items: {
     id: string;
     product_name: string;
@@ -160,7 +168,7 @@ interface AdminOrderDetailRow {
 const ADMIN_ORDER_COLUMNS =
   "order_number, created_at, status, ship_full_name, ship_phone, ship_street, ship_area, " +
   "ship_city, ship_state, ship_pincode, ship_type, subtotal, discount, delivery_fee, " +
-  "platform_fee, total, " +
+  "platform_fee, total, amount_paid, cancelled_at, " +
   "order_items(id, product_name, product_category, image_url, size_uk, quantity, unit_price, " +
   "is_customized, order_item_customizations(part_id, part_name, colour_name, colour_hex))";
 
@@ -192,6 +200,8 @@ export async function getAdminOrder(orderNumber: string): Promise<AdminOrderDeta
     deliveryFee: data.delivery_fee,
     platformFee: data.platform_fee,
     total: data.total,
+    amountPaid: data.amount_paid === null ? null : Number(data.amount_paid),
+    cancelledAt: data.cancelled_at,
     lines: data.order_items.map((item) => ({
       id: item.id,
       name: item.product_name,

@@ -287,10 +287,10 @@ function Details({
             locations={locations}
             onRefused={onRefused}
             onClose={() => setEditing(false)}
-            onUpdated={(fresh) => {
+            onUpdated={(fresh, changed) => {
               onOrderChange(fresh);
               setEditing(false);
-              setAddressStatus("Delivery address updated");
+              setAddressStatus(changed ? "Delivery address updated" : "Delivery address unchanged");
               shippingRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
             }}
           />
@@ -305,7 +305,18 @@ function Details({
         <h2 id="shipping-heading" className="px-gutter text-[15px] text-ink/70">
           Shipping Details
         </h2>
-        <p role="status" className={addressStatus ? "mt-2 px-gutter text-[15px] font-medium text-success" : "sr-only"}>
+        <p
+          role="status"
+          className={
+            addressStatus
+              ? cn(
+                  "mt-2 px-gutter text-[15px] font-medium",
+                  // Green only when something changed; "unchanged" is neutral.
+                  addressStatus === "Delivery address updated" ? "text-success" : "text-ink/70",
+                )
+              : "sr-only"
+          }
+        >
           {addressStatus}
         </p>
         <address className="mt-[17px] border-y border-[#d9d9d9] px-gutter pt-[18px] pb-[27px] text-[17px] not-italic">
