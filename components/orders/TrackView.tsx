@@ -10,8 +10,7 @@ import { TrackTimeline } from "./TrackTimeline";
 /**
  * Track Order — Figma 1:4176 (with the "Status" header from 1:4232).
  * `orderId` is the Supabase order number from the URL; the order is read from
- * Supabase (orders saved only on this device by V1 are not shown). No live
- * tracking, courier or map in V1.
+ * Supabase. No live tracking, courier or map in V1.
  */
 export function TrackView({ orderId }: { orderId: string }) {
   const { state, retry } = useCatalogueLoad(getOrderByNumber, orderId);

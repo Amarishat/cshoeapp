@@ -26,7 +26,7 @@ function NoOrders() {
 
 /**
  * My Orders body — Figma frame 1:3647. Orders are the guest's Supabase orders
- * (newest first); orders saved only on this device by V1 are not shown.
+ * (newest first).
  * "Completed Orders" (delivered) and "Cancelled Orders" only appear when such
  * an order exists; cancelled orders stay listed, never among the in-progress
  * ones.

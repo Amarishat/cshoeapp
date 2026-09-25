@@ -5,17 +5,44 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { getOrderByNumber } from "@/lib/data/userOrders";
-import { formatDeliveryDate } from "@/lib/orders";
+import { cancelledLabel, formatDeliveryDate, formatEventDate, orderStatusView } from "@/lib/orders";
 import { formatPrice } from "@/lib/pricing";
+import type { Order } from "@/lib/types";
 import { useBagStore } from "@/lib/store/bag";
 import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
+
+/** "Shipped on 20 Sep 2026", or just "Shipped" when the time wasn't recorded. */
+function onDate(label: string, iso: string | null): string {
+  return iso ? `${label} on ${formatEventDate(iso)}` : label;
+}
+
+/**
+ * The last detail row: the arrival estimate while the order is confirmed,
+ * otherwise its current status with the recorded date when there is one.
+ */
+function whereItIs(order: Order): readonly [string, string] {
+  switch (order.status) {
+    case "confirmed":
+      return ["Arriving by", formatDeliveryDate(order.createdAt)];
+    case "shipped":
+      return ["Status", onDate("Shipped", order.shippedAt)];
+    case "out_for_delivery":
+      return ["Status", onDate("Out for delivery", order.outForDeliveryAt)];
+    case "delivered":
+      // "Delivered on 25 Sep 2026" / "Delivered", as on My Orders and Order Details.
+      return ["Status", orderStatusView(order).label];
+    case "cancelled":
+      return ["Status", cancelledLabel(order)];
+  }
+}
 
 /**
  * Payment Successful — Figma frame 1:4956. Figma's Lottie animation is
  * replaced by a CSS check mark; its "Successfull" typo is fixed. Instead of
  * Figma's 548px animation area, the check, heading, order details and
- * buttons are centred as one group. The arrival date is the same V1 estimate
- * shown on My Orders, Order Details and Track.
+ * buttons are centred as one group. While the order is confirmed it shows the
+ * same V1 arrival estimate as My Orders, Order Details and Track; opened again
+ * later, it shows where the order is now instead (see `whereItIs`).
  *
  * The order is read from Supabase by the order number place_order() returned
  * (`?order=`); everything shown comes from the database order.
@@ -73,7 +100,7 @@ export function PaymentSuccess({ orderNumber }: { orderNumber: string | null }) 
             ["Order ID", order.id],
             // What was paid at checkout — not the current total, which item edits can change.
             ["Amount Paid", order.amountPaid === null ? "—" : formatPrice(order.amountPaid)],
-            ["Arriving by", formatDeliveryDate(order.createdAt)],
+            whereItIs(order),
           ] as const
         ).map(([label, value]) => (
           <div key={label} className="flex items-baseline justify-between gap-3">

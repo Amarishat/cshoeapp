@@ -292,8 +292,9 @@ export function orderMatches(order: Order, query: string): boolean {
 }
 
 /**
- * Plain-text summary of an order for "Send Order Details" (shared as text —
- * orders live on this device only, so there is no link to share).
+ * Plain-text summary of an order for "Send Order Details" (shared as text: an
+ * order page only opens for the guest who placed it, so a link would be no use
+ * to anyone else).
  */
 export function orderSummaryText(order: Order): string {
   const date = formatEventDate(order.createdAt);

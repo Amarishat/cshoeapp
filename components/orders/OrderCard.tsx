@@ -12,7 +12,7 @@ const button = "flex h-11 items-center justify-center rounded-[7px] text-[15px] 
  * "+N more items", arrival estimate, and Cancel / View Order. Cancel is a real
  * action only while the order is "confirmed" (`onCancel`, which asks for
  * confirmation first). A delivered order reads as completed ("Completed
- * Order", "Delivered", Figma 1:3715) and a cancelled one shows when it was
+ * Order", "Delivered on <date>", Figma 1:3715) and a cancelled one shows when it was
  * cancelled — neither with an arrival date, and both with only View Order.
  */
 export function OrderCard({
@@ -29,7 +29,7 @@ export function OrderCard({
 }) {
   const [first, ...rest] = order.lines;
   const size = first.size.replace(/^UK /, "");
-  const { tone } = orderStatusView(order);
+  const { tone, label } = orderStatusView(order);
   const cancelled = tone === "cancelled";
   // Delivered and cancelled orders are finished: no Cancel, just View Order.
   const finished = tone !== "progress";
@@ -66,7 +66,8 @@ export function OrderCard({
           {cancelled ? (
             <p className="mt-[3px] text-secondary font-medium text-danger">{cancelledLabel(order)}</p>
           ) : tone === "delivered" ? (
-            <p className="mt-[3px] text-secondary font-medium text-success">Delivered</p>
+            // "Delivered on 25 Sep 2026", or just "Delivered" when the time wasn't recorded.
+            <p className="mt-[3px] text-secondary font-medium text-success">{label}</p>
           ) : (
             <p className="mt-[3px] text-secondary font-medium text-success">{arrivingByLabel(order.createdAt)}</p>
           )}
