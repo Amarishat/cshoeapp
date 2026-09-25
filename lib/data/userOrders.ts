@@ -180,6 +180,44 @@ export async function listOrders(): Promise<Order[]> {
   return data.filter((row) => row.order_items.length > 0).map(toOrder);
 }
 
+/** What public.update_order_address() returns: one row with the order's new shipping snapshot. */
+interface UpdatedAddressRow {
+  order_number: string;
+}
+
+/**
+ * Changes where one of the guest's orders is delivered, through the database
+ * function public.update_order_address(): it copies `addressId` (one of the
+ * guest's saved addresses) into the order's shipping snapshot, and only while
+ * the order is still "confirmed" (not yet shipped). Nothing else on the order
+ * changes. Throws if the database refused or the request failed; in that case
+ * nothing changed.
+ */
+export async function updateOrderAddress(orderNumber: string, addressId: string): Promise<void> {
+  await ensureGuestSession();
+  const { data, error } = await getSupabaseClient().rpc("update_order_address", {
+    p_order_number: orderNumber,
+    p_address_id: addressId,
+  });
+  if (error) {
+    // The function's own refusals, in plain words; anything else as it came.
+    const message =
+      error.code === "55000"
+        ? "it has already shipped. Only an order that hasn’t shipped yet can be changed"
+        : error.code === "P0002"
+          ? error.message === "Address not found"
+            ? "that address wasn’t found. Choose another saved address"
+            : "this order wasn’t found"
+          : error.message;
+    throw new OrderError("change the delivery address", { message, code: error.code });
+  }
+  // A set-returning function comes back as an array of rows.
+  const rows = (data ?? []) as UpdatedAddressRow[];
+  if (rows[0]?.order_number !== orderNumber) {
+    throw new OrderError("change the delivery address", { message: "the order wasn’t updated" });
+  }
+}
+
 /** What public.cancel_order() returns: one row with the order's new state. */
 interface CancelledOrderRow {
   order_number: string;

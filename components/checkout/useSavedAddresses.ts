@@ -12,15 +12,21 @@ export type SavedAddressesState =
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
+const noSync = () => {};
+
 /**
  * The guest user's saved addresses from Supabase, kept in sync with the
- * checkout store (which the next checkout steps read). `save` writes to
- * Supabase and only reports success once the write has succeeded.
+ * checkout store (which the next checkout steps read) unless `syncCheckout`
+ * is false — as when choosing an address for an order that already exists,
+ * which must leave checkout alone. `save` writes to Supabase and only
+ * reports success once the write has succeeded.
  */
-export function useSavedAddresses() {
+export function useSavedAddresses({ syncCheckout = true }: { syncCheckout?: boolean } = {}) {
   const [state, setState] = useState<SavedAddressesState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
-  const syncAddresses = useCheckoutStore((s) => s.syncAddresses);
+  const syncCheckoutAddresses = useCheckoutStore((s) => s.syncAddresses);
+  // syncAddresses can also change checkout's selected address, so it is skipped entirely when asked.
+  const syncAddresses = syncCheckout ? syncCheckoutAddresses : noSync;
 
   useEffect(() => {
     let cancelled = false;

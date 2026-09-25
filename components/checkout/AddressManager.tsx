@@ -9,23 +9,37 @@ import { AddressCard } from "./AddressCard";
 import { AddressForm, emptyAddress } from "./AddressForm";
 import { useSavedAddresses } from "./useSavedAddresses";
 
+/** Who owns the selected address, when it isn't checkout (see `selection`). */
+export interface AddressSelection {
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}
+
 /**
  * Saved-address list (select / edit) plus the add-or-edit form — Figma frame
  * 1:3396. Shared by Checkout · Address and Settings · Saved Addresses. The
  * addresses are the guest user's rows in Supabase (loaded and saved via
  * useSavedAddresses, which also keeps the checkout store in sync).
+ *
+ * With `selection`, the choice belongs to the caller instead (e.g. changing
+ * the delivery address of a placed order): checkout's selected address and
+ * its address list are neither read nor changed.
  */
 export function AddressManager({
   locations,
   className,
+  selection,
 }: {
   locations: LocationState[];
   className?: string;
+  selection?: AddressSelection;
 }) {
-  const { state: list, retry, save } = useSavedAddresses();
+  const { state: list, retry, save } = useSavedAddresses({ syncCheckout: !selection });
   const addresses = list.status === "ready" ? list.addresses : [];
-  const selectedId = useCheckoutStore((s) => s.selectedAddressId);
-  const selectAddress = useCheckoutStore((s) => s.selectAddress);
+  const checkoutSelectedId = useCheckoutStore((s) => s.selectedAddressId);
+  const checkoutSelect = useCheckoutStore((s) => s.selectAddress);
+  const selectedId = selection ? selection.selectedId : checkoutSelectedId;
+  const selectAddress = selection ? selection.onSelect : checkoutSelect;
 
   const [form, setForm] = useState<AddressInput>(emptyAddress);
   const [editingId, setEditingId] = useState<string | null>(null);

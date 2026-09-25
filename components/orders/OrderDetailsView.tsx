@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { ButtonLink } from "@/components/ui/Button";
 import { ComingSoonBadge } from "@/components/ui/ComingSoonBadge";
@@ -21,7 +21,8 @@ import {
 import { formatAmount, formatPrice } from "@/lib/pricing";
 import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
 import { useShareFeedback } from "@/lib/useShareFeedback";
-import type { Order, OrderLine } from "@/lib/types";
+import type { LocationState, Order, OrderLine } from "@/lib/types";
+import { EditDeliveryAddress } from "./EditDeliveryAddress";
 import { OrderTimeline } from "./OrderTimeline";
 
 /** Search field from Figma (same look as My Orders); submitting opens /orders with the query. */
@@ -156,8 +157,22 @@ function SendOrderDetails({ order }: { order: Order }) {
   );
 }
 
-function Details({ order }: { order: Order }) {
+function Details({
+  order,
+  locations,
+  onOrderChange,
+}: {
+  order: Order;
+  locations: LocationState[];
+  /** A fresh copy of the order after it was changed here. */
+  onOrderChange: (order: Order) => void;
+}) {
   const status = orderStatusView(order);
+  // Only a confirmed (not yet shipped) order can be edited — for now, its delivery address.
+  const editable = order.status === "confirmed";
+  const [editing, setEditing] = useState(false);
+  const [addressStatus, setAddressStatus] = useState("");
+  const shippingRef = useRef<HTMLElement>(null);
   const pairs = order.lines.reduce((sum, line) => sum + line.quantity, 0);
   const app = upiApps.find((a) => a.id === order.payment.app);
   const { address, totals } = order;
@@ -212,12 +227,27 @@ function Details({ order }: { order: Order }) {
         </Link>
       </section>
 
-      {/* Edit Order | Chat with us */}
-      <div className="mt-11 grid h-[67px] grid-cols-2 border-y border-[#d9d9d9] shadow-[0_-2px_4px_rgba(0,0,0,0.04),0_2px_4px_rgba(0,0,0,0.04)]">
-        <SoonAction className="flex flex-col items-center justify-center gap-1 border-r border-[#d9d9d9] text-[17px] font-medium text-ink/40">
-          Edit Order
-          <ComingSoonBadge />
-        </SoonAction>
+      {/* Edit Order (confirmed orders only) | Chat with us */}
+      <div
+        className={cn(
+          "mt-11 grid h-[67px] border-y border-[#d9d9d9] shadow-[0_-2px_4px_rgba(0,0,0,0.04),0_2px_4px_rgba(0,0,0,0.04)]",
+          editable ? "grid-cols-2" : "grid-cols-1",
+        )}
+      >
+        {editable && (
+          <button
+            type="button"
+            aria-expanded={editing}
+            aria-controls="edit-delivery-address"
+            onClick={() => {
+              setEditing((open) => !open);
+              setAddressStatus("");
+            }}
+            className="flex flex-col items-center justify-center gap-1 border-r border-[#d9d9d9] text-[17px] font-medium"
+          >
+            Edit Order
+          </button>
+        )}
         <SoonAction className="flex flex-col items-center justify-center gap-1 text-[17px] font-medium text-ink/40">
           <span className="flex items-center gap-2">
             <Image src="/images/orders/chat.svg" alt="" width={24} height={23} unoptimized className="opacity-40" />
@@ -227,14 +257,33 @@ function Details({ order }: { order: Order }) {
         </SoonAction>
       </div>
 
+      {editable && editing && (
+        <div id="edit-delivery-address">
+          <EditDeliveryAddress
+            order={order}
+            locations={locations}
+            onClose={() => setEditing(false)}
+            onUpdated={(fresh) => {
+              onOrderChange(fresh);
+              setEditing(false);
+              setAddressStatus("Delivery address updated");
+              shippingRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+          />
+        </div>
+      )}
+
       {/* Send Order Details (recommendation rows from Figma are omitted in V1) */}
       <SendOrderDetails order={order} />
 
       {/* Shipping details */}
-      <section aria-labelledby="shipping-heading" className="mt-10">
+      <section ref={shippingRef} aria-labelledby="shipping-heading" className="mt-10 scroll-mt-4">
         <h2 id="shipping-heading" className="px-gutter text-[15px] text-ink/70">
           Shipping Details
         </h2>
+        <p role="status" className={addressStatus ? "mt-2 px-gutter text-[15px] font-medium text-success" : "sr-only"}>
+          {addressStatus}
+        </p>
         <address className="mt-[17px] border-y border-[#d9d9d9] px-gutter pt-[18px] pb-[27px] text-[17px] not-italic">
           <span className="block text-body">{address.fullName}</span>
           <span className="mt-[21px] block">
@@ -280,8 +329,10 @@ function Details({ order }: { order: Order }) {
  * from the URL; the order is read from Supabase (orders saved only on this
  * device by V1 are not shown).
  */
-export function OrderDetailsView({ orderId }: { orderId: string }) {
+export function OrderDetailsView({ orderId, locations }: { orderId: string; locations: LocationState[] }) {
   const { state, retry } = useCatalogueLoad(getOrderByNumber, orderId);
+  // The order as re-read after a change on this screen, shown instead of the loaded copy.
+  const [updated, setUpdated] = useState<Order | null>(null);
 
   if (state.status === "loading") {
     return (
@@ -301,7 +352,7 @@ export function OrderDetailsView({ orderId }: { orderId: string }) {
     );
   }
 
-  const order = state.data;
+  const order = updated?.id === orderId ? updated : state.data;
   if (!order) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center px-gutter pt-24 pb-32 text-center">
@@ -314,5 +365,5 @@ export function OrderDetailsView({ orderId }: { orderId: string }) {
     );
   }
 
-  return <Details order={order} />;
+  return <Details order={order} locations={locations} onOrderChange={setUpdated} />;
 }

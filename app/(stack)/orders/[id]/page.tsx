@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { BagButton } from "@/components/layout/BagButton";
 import { OrderDetailsView } from "@/components/orders/OrderDetailsView";
+import { locations } from "@/lib/data/locations";
 
 export const metadata: Metadata = { title: "Order Details" };
 
@@ -12,7 +13,7 @@ export default async function OrderDetailsPage({ params }: PageProps<"/orders/[i
   return (
     <>
       <AppHeader leading="back" backHref="/orders" title="Order Details" actions={<BagButton />} />
-      <OrderDetailsView orderId={decodeURIComponent(id)} />
+      <OrderDetailsView orderId={decodeURIComponent(id)} locations={locations} />
     </>
   );
 }
