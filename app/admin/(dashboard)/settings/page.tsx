@@ -45,7 +45,7 @@ const rows: SettingRow[] = [
     label: "Order status editing",
     value: "Admins only",
     detail:
-      "Admins can update orders through the order details page using the supported order statuses: Confirmed, Shipped, Out for delivery and Delivered. Only the status can be changed, and only by an admin.",
+      "Admins can update an order’s status from its Order Details page: Confirmed, Shipped, Out for delivery, Delivered or Cancelled. Only the status can be changed, and the change is protected by the admin role and row level security — an update from any other account is refused by the database.",
   },
 ];
 
