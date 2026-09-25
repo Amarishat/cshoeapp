@@ -19,7 +19,7 @@ import { useCatalogueLoad } from "@/lib/useCatalogueLoad";
 const cell = "px-4 py-3 text-left align-middle";
 const head = `${cell} text-secondary font-medium text-ink/60`;
 
-/** The four values of public.order_status, in the order they happen. */
+/** Every value of public.order_status: the delivery steps in order, then "cancelled". */
 const STATUS_LABEL: Record<OrderStatus, string> = {
   confirmed: "Confirmed",
   shipped: "Shipped",
@@ -28,13 +28,14 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
   cancelled: "Cancelled",
 };
 
-/** "All", then the four real statuses. Nothing here can change an order's status. */
+/** "All", then every real status. Nothing here can change an order's status. */
 const STATUS_OPTIONS = [
   { value: "all", label: "All" },
   { value: "confirmed", label: "Confirmed" },
   { value: "shipped", label: "Shipped" },
   { value: "out_for_delivery", label: "Out for delivery" },
   { value: "delivered", label: "Delivered" },
+  { value: "cancelled", label: "Cancelled" },
 ] as const;
 
 type StatusFilter = (typeof STATUS_OPTIONS)[number]["value"];
