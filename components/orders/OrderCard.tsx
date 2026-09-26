@@ -9,7 +9,8 @@ const button = "flex h-11 items-center justify-center rounded-[7px] text-[15px] 
 
 /**
  * One order (Figma 1:3672 – 1:3703): tracker, primary item (first line) with
- * "+N more items", arrival estimate, and Cancel / View Order. Cancel is a real
+ * "+N more items" (a customised item carries the "Customised" label from
+ * Order Details), arrival estimate, and Cancel / View Order. Cancel is a real
  * action only while the order is "confirmed" (`onCancel`, which asks for
  * confirmation first). A delivered order reads as completed ("Completed
  * Order", "Delivered on <date>", Figma 1:3715) and a cancelled one shows when it was
@@ -29,6 +30,8 @@ export function OrderCard({
 }) {
   const [first, ...rest] = order.lines;
   const size = first.size.replace(/^UK /, "");
+  // Same test as Order Details: a line with a saved design is a customised item.
+  const customised = !!first.customization && Object.keys(first.customization).length > 0;
   const { tone, label } = orderStatusView(order);
   const cancelled = tone === "cancelled";
   // Delivered and cancelled orders are finished: no Cancel, just View Order.
@@ -57,6 +60,13 @@ export function OrderCard({
             {cancelled ? "Cancelled Order" : tone === "delivered" ? "Completed Order" : "In Progress Order"}
           </h3>
           <p className="mt-px truncate text-secondary font-medium text-ink/30">{first.name}</p>
+          {customised && (
+            // The "Customised" label and icon from Order Details, under the item it describes.
+            <p className="mt-[3px] flex items-center gap-2 text-[15px] font-medium">
+              Customised
+              <Image src="/images/icons/customise.png" alt="" width={17} height={16} className="h-4 w-[17px] object-cover" />
+            </p>
+          )}
           {rest.length > 0 && (
             <p className="text-[14px] font-medium text-ink/50">
               +{rest.length} more {rest.length === 1 ? "item" : "items"}
