@@ -238,7 +238,7 @@ export function CustomizerView({
         <div className="mt-[37px] justify-self-end pr-[49px] text-right">
           <p className="text-secondary font-medium text-ink/30">Price</p>
           <p className="mt-[5px] text-[25px] font-medium">{formatPrice(config.price)}</p>
-          <p className="mt-1 text-[15px] font-medium text-success">{config.discountLabel}</p>
+          {/* No discount label: it's display-only and no discount is ever applied (see AdminProductEditor). */}
         </div>
       </div>
     </div>

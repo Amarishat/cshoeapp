@@ -145,13 +145,18 @@ function EditForm({ product }: { product: AdminProduct }) {
           value={labelFor(form.audience)}
           onChange={(event) => set("audience", audienceFor(event.target.value))}
         />
-        <TextField
-          label="Discount label"
-          size="sm"
-          placeholder="e.g. 10% OFF — shown as text, never applied to the price"
-          value={form.discountLabel}
-          onChange={(event) => set("discountLabel", event.target.value)}
-        />
+        <div>
+          <TextField
+            label="Discount label"
+            size="sm"
+            placeholder="e.g. 10% OFF — display-only, not shown to customers"
+            value={form.discountLabel}
+            onChange={(event) => set("discountLabel", event.target.value)}
+          />
+          <p className="mt-1.5 text-caption text-ink/50">
+            Display-only: never applied to the price, and not currently shown to customers.
+          </p>
+        </div>
 
         <div className="flex flex-col gap-5 border-t border-border pt-6">
           <Checkbox

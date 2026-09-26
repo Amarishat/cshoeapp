@@ -142,12 +142,7 @@ function LimitedEditionContents({ edition }: { edition: LimitedEdition }) {
         <p className="absolute font-medium" style={{ left: u(26), top: u(438), fontSize: u(27) }}>
           {formatPrice(edition.price)}
         </p>
-        <p
-          className="absolute font-medium text-[#be3032]"
-          style={{ left: u(42), top: u(472), fontSize: u(15) }}
-        >
-          {edition.discountLabel}
-        </p>
+        {/* No discount label: it's display-only and no discount is ever applied (see AdminProductEditor). */}
         <h2
           className="absolute -translate-x-1/2 font-semibold tracking-[0.2475px] whitespace-nowrap"
           style={{ left: u(217), top: u(495), fontSize: u(25) }}
