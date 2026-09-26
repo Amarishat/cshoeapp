@@ -32,23 +32,26 @@ export interface CustomiseHubCatalogue {
   brands: Brand[];
 }
 
-/** The hub's products and brands; anything missing is an error, not a gap. */
+/**
+ * The hub's products and brands. A product or brand that's no longer in the
+ * catalogue is simply left out (the rest keep their order, as in the Shop,
+ * Brand and Home loaders), so one removed row can't take the page down; a
+ * failed read still throws.
+ */
 export async function loadCustomiseHub(): Promise<CustomiseHubCatalogue> {
   const [products, allBrands] = await Promise.all([getProducts(), getBrands()]);
   const productById = new Map(products.map((p) => [p.id, p]));
   const brandById = new Map(allBrands.map((b) => [b.id, b]));
 
   return {
-    products: CUSTOMIZER_PAGES.map((page) => {
+    products: CUSTOMIZER_PAGES.flatMap((page) => {
       const product = productById.get(page.productId);
-      if (!product) throw new Error(`Customisable product "${page.productId}" is missing from the catalogue.`);
-      return product;
+      return product ? [product] : [];
     }),
-    brands: HUB_BRANDS.map(({ id, logoWidth, logoHeight }) => {
+    brands: HUB_BRANDS.flatMap(({ id, logoWidth, logoHeight }) => {
       const brand = brandById.get(id);
-      if (!brand) throw new Error(`Brand "${id}" is missing from the catalogue.`);
       // Name and logo come from Supabase; the circle's logo box stays in Figma's values.
-      return { ...brand, logoWidth, logoHeight };
+      return brand ? [{ ...brand, logoWidth, logoHeight }] : [];
     }),
   };
 }

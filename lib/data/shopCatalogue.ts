@@ -50,7 +50,12 @@ export interface ShopCatalogue {
  */
 let inFlight: Promise<ShopCatalogue> | null = null;
 
-/** Picks Shop's products and brands in Shop order; anything missing is an error, not a gap. */
+/**
+ * Picks Shop's products and brands in Shop order. An id that's no longer in
+ * the catalogue is simply left out (the rest keep their order), so one
+ * removed row can't take Shop, Filters and search down; a failed read still
+ * throws.
+ */
 export function loadShopCatalogue(): Promise<ShopCatalogue> {
   inFlight ??= readShopCatalogue().finally(() => {
     inFlight = null;
@@ -62,17 +67,16 @@ async function readShopCatalogue(): Promise<ShopCatalogue> {
   const [products, allBrands] = await Promise.all([getProducts(), getBrands()]);
   const byId = new Map(products.map((p) => [p.id, p]));
   const brandById = new Map(allBrands.map((b) => [b.id, b]));
-  const pick = <T,>(map: Map<string, T>, ids: string[], kind: string) =>
-    ids.map((id) => {
+  const pick = <T,>(map: Map<string, T>, ids: string[]) =>
+    ids.flatMap((id) => {
       const item = map.get(id);
-      if (!item) throw new Error(`Shop ${kind} "${id}" is missing from the catalogue.`);
-      return item;
+      return item ? [item] : [];
     });
-  const shopProducts = pick(byId, SHOP_PRODUCT_IDS, "product");
+  const shopProducts = pick(byId, SHOP_PRODUCT_IDS);
   return {
     products: shopProducts,
     searchable: [...shopProducts, ...products.filter((p) => !SHOP_PRODUCT_IDS.includes(p.id))],
-    brands: pick(brandById, SHOP_BRAND_IDS, "brand"),
+    brands: pick(brandById, SHOP_BRAND_IDS),
     allBrands,
     brandNames: Object.fromEntries(allBrands.map((b) => [b.id, b.name])),
   };

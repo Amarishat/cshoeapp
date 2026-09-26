@@ -32,14 +32,18 @@ const HOME_SECTIONS = {
 type HomeSections = Record<keyof typeof HOME_SECTIONS, CatalogueProduct[]>;
 type HomeCatalogue = { brands: Brand[]; sections: HomeSections };
 
-/** Picks each section's products in Home order; a missing product is an error, not a gap. */
+/**
+ * Picks each section's products in Home order. A product that's no longer in
+ * the catalogue is simply left out (the rest keep their order; a section left
+ * with none is hidden, as for an audience with none), so one removed row
+ * can't take Home down.
+ */
 function toHomeSections(products: CatalogueProduct[]): HomeSections {
   const byId = new Map(products.map((p) => [p.id, p]));
   const pick = (ids: readonly string[]) =>
-    ids.map((id) => {
+    ids.flatMap((id) => {
       const product = byId.get(id);
-      if (!product) throw new Error(`Home product "${id}" is missing from the catalogue.`);
-      return product;
+      return product ? [product] : [];
     });
   return {
     topPicks: pick(HOME_SECTIONS.topPicks),

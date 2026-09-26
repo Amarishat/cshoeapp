@@ -33,14 +33,17 @@ export interface BrandCatalogue {
   products: CatalogueProduct[];
 }
 
-/** Brands and brand-page products; a missing product is an error, not a gap. */
+/**
+ * Brands and brand-page products. A product id that's no longer in the
+ * catalogue is simply left out (the rest keep their order), so one removed
+ * row can't take every brand page down; a failed read still throws.
+ */
 export async function loadBrandCatalogue(): Promise<BrandCatalogue> {
   const [brands, all] = await Promise.all([getBrands(), getProducts()]);
   const byId = new Map(all.map((p) => [p.id, p]));
-  const products = BRAND_PAGE_PRODUCT_IDS.map((id) => {
+  const products = BRAND_PAGE_PRODUCT_IDS.flatMap((id) => {
     const product = byId.get(id);
-    if (!product) throw new Error(`Brand product "${id}" is missing from the catalogue.`);
-    return product;
+    return product ? [product] : [];
   });
   return { brands, products };
 }
