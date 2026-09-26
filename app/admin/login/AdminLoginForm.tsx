@@ -16,7 +16,7 @@ const NOT_ADMIN = "That account doesn’t have admin access.";
  * here never replaces (or signs out) the storefront's guest. A signed-in
  * account that isn't an admin is signed straight back out of the admin client.
  */
-export function AdminLoginForm() {
+export function AdminLoginForm({ notice }: { notice?: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -74,6 +74,12 @@ export function AdminLoginForm() {
     >
       <h1 className="text-heading font-semibold">Cshoe Admin</h1>
       <p className="mt-2 text-secondary text-ink/60">Sign in to manage the catalogue.</p>
+      {/* Why they're here (session ended, access removed); hidden once they try to sign in. */}
+      {notice && !error && (
+        <p role="status" className="mt-4 rounded-[9px] bg-surface px-4 py-3 text-secondary">
+          {notice}
+        </p>
+      )}
 
       <div className="mt-8 flex flex-col gap-6">
         <TextField
