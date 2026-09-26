@@ -1,5 +1,5 @@
 import { hasCustomizerPage } from "@/lib/data/customizerPages";
-import { getProductBySlug, getProducts } from "@/lib/data/supabaseCatalog";
+import { getProductBySlug, getProducts, type CatalogueProductDetail } from "@/lib/data/supabaseCatalog";
 import type { ProductDetail } from "@/lib/types";
 
 /*
@@ -41,6 +41,33 @@ export async function getProductPageMeta(slug: string): Promise<ProductPageMeta 
 }
 
 /**
+ * What a product still needs before its page can be shown, in plain words
+ * (e.g. ["description", "cut-out image"]); empty when it has everything. The
+ * one rule for the customer page (loadProductPage) and for the admin, which
+ * won't switch "Product page live" on while anything is missing.
+ */
+export function missingProductPageData(p: CatalogueProductDetail): string[] {
+  return [
+    !p.shortName && "short name",
+    !p.description && "description",
+    !p.cutout && "cut-out image",
+    p.defaultSizeUK === null && "default size",
+    p.gallery.length === 0 && "gallery images",
+    p.sizesUK.length === 0 && "sizes",
+  ].filter((field): field is string => !!field);
+}
+
+/**
+ * What the product with this slug still needs for its page (see
+ * missingProductPageData), whether or not the page is live; null when there's
+ * no such product. A failed read throws.
+ */
+export async function missingProductPageDataFor(slug: string): Promise<string[] | null> {
+  const product = await getProductBySlug(slug);
+  return product ? missingProductPageData(product) : null;
+}
+
+/**
  * One product page's data in the existing `ProductDetail` shape, or null when
  * that slug has no page. Fields a product page needs are required: if the
  * product has a page but any of them is missing in the database this throws
@@ -51,22 +78,8 @@ export async function loadProductPage(slug: string): Promise<ProductPageData | n
   if (!p?.hasProductPage) return null;
 
   const { shortName, description, cutout, defaultSizeUK } = p;
-  if (
-    !shortName ||
-    !description ||
-    !cutout ||
-    defaultSizeUK === null ||
-    p.gallery.length === 0 ||
-    p.sizesUK.length === 0
-  ) {
-    const missing = [
-      !shortName && "short name",
-      !description && "description",
-      !cutout && "cut-out image",
-      defaultSizeUK === null && "default size",
-      p.gallery.length === 0 && "gallery images",
-      p.sizesUK.length === 0 && "sizes",
-    ].filter(Boolean);
+  const missing = missingProductPageData(p);
+  if (missing.length > 0 || !shortName || !description || !cutout || defaultSizeUK === null) {
     throw new Error(`Product "${slug}" is missing product-page data: ${missing.join(", ")}.`);
   }
 

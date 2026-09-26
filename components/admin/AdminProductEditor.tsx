@@ -10,6 +10,7 @@ import { SelectField } from "@/components/ui/SelectField";
 import { TextField } from "@/components/ui/TextField";
 import {
   getAdminProduct,
+  productPageBlocker,
   updateAdminProduct,
   type AdminProduct,
   type AdminProductEdit,
@@ -73,6 +74,9 @@ function EditForm({ product }: { product: AdminProduct }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  // Switching "Product page live" on is checked first; why it can't be, if so.
+  const [checkingPage, setCheckingPage] = useState(false);
+  const [pageBlocked, setPageBlocked] = useState("");
 
   const price = Number(priceText);
   const priceError =
@@ -84,6 +88,28 @@ function EditForm({ product }: { product: AdminProduct }) {
   function set<K extends keyof AdminProductEdit>(key: K, value: AdminProductEdit[K]) {
     setForm((current) => ({ ...current, [key]: value }));
     setSaved(false);
+  }
+
+  /**
+   * Off always works. On only once the product has everything its page needs
+   * (the customer page's own rule), so it never leads customers to a broken page.
+   */
+  async function setProductPage(on: boolean) {
+    if (checkingPage) return;
+    setPageBlocked("");
+    if (!on) return set("hasProductPage", false);
+    setCheckingPage(true);
+    try {
+      const blocker = await productPageBlocker(product.slug);
+      if (blocker) setPageBlocked(`Can’t switch the product page on: ${blocker}`);
+      else set("hasProductPage", true);
+    } catch (thrown) {
+      setPageBlocked(
+        `Couldn’t check the product page’s data: ${thrown instanceof Error ? thrown.message : String(thrown)}`,
+      );
+    } finally {
+      setCheckingPage(false);
+    }
   }
 
   async function save() {
@@ -174,15 +200,22 @@ function EditForm({ product }: { product: AdminProduct }) {
           <Checkbox
             variant="form"
             checked={form.hasProductPage}
-            onChange={(checked) => set("hasProductPage", checked)}
+            onChange={(checked) => void setProductPage(checked)}
           >
             <span className="text-label">
               Product page live
               <span className="block text-caption text-ink/50">
-                Makes /products/{product.slug} reachable and its cards clickable.
+                {checkingPage
+                  ? "Checking the product page’s data…"
+                  : `Makes /products/${product.slug} reachable and its cards clickable.`}
               </span>
             </span>
           </Checkbox>
+          {pageBlocked && (
+            <p role="alert" className="-mt-2 text-secondary text-danger [overflow-wrap:anywhere]">
+              {pageBlocked}
+            </p>
+          )}
         </div>
       </div>
 

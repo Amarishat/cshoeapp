@@ -1,3 +1,5 @@
+import { missingProductPageData } from "@/lib/data/productPages";
+import { getProductBySlug } from "@/lib/data/supabaseCatalog";
 import { getAdminSupabaseClient } from "@/lib/supabase/client";
 import type { Audience, GalleryImage, Rect } from "@/lib/types";
 
@@ -83,7 +85,44 @@ export async function getAdminProduct(id: string): Promise<AdminProduct | null> 
  * isn't an admin's is refused by row level security: the update matches no
  * row, which is reported as an error rather than a silent no-op.
  */
+/** "a, b and c" */
+function listOf(items: string[]): string {
+  return items.length <= 1 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+}
+
+/**
+ * Why "Product page live" can't be switched on for this product yet (it would
+ * lead customers to a broken page), or null when it can. The page's
+ * requirements are the customer page's own (missingProductPageData).
+ */
+export async function productPageBlocker(slug: string): Promise<string | null> {
+  const product = await getProductBySlug(slug);
+  if (!product) return "the product wasn’t found.";
+  const missing = missingProductPageData(product);
+  if (missing.length === 0) return null;
+  return (
+    `the product page still needs its ${listOf(missing)}. ` +
+    "These can’t be edited in the admin yet — add them in Supabase, then switch the page on."
+  );
+}
+
 export async function updateAdminProduct(id: string, edit: AdminProductEdit): Promise<AdminProduct> {
+  if (edit.hasProductPage) {
+    // Switching the page on (not keeping a live one on) needs the page's data;
+    // checked here too, so the editor's toggle isn't the only guard.
+    const { data: current, error: readError } = await getAdminSupabaseClient()
+      .from("products")
+      .select("slug, has_product_page")
+      .eq("id", id)
+      .maybeSingle()
+      .overrideTypes<{ slug: string; has_product_page: boolean } | null, { merge: false }>();
+    if (readError) throw new AdminProductError("save the product", readError);
+    if (current && !current.has_product_page) {
+      const blocker = await productPageBlocker(current.slug);
+      if (blocker) throw new AdminProductError("switch the product page on", { message: blocker });
+    }
+  }
+
   const { data, error } = await getAdminSupabaseClient()
     .from("products")
     .update({
