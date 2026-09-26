@@ -44,9 +44,10 @@ export async function loadCustomiseHub(): Promise<CustomiseHubCatalogue> {
   const brandById = new Map(allBrands.map((b) => [b.id, b]));
 
   return {
+    // Only shoes switched on for customising in admin (is_customizable).
     products: CUSTOMIZER_PAGES.flatMap((page) => {
       const product = productById.get(page.productId);
-      return product ? [product] : [];
+      return product?.customizable ? [product] : [];
     }),
     brands: HUB_BRANDS.flatMap(({ id, logoWidth, logoHeight }) => {
       const brand = brandById.get(id);

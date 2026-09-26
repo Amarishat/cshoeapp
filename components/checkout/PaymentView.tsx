@@ -152,8 +152,8 @@ function PaymentContents({ catalog, address }: { catalog: Record<string, BagProd
       {staleCount > 0 && (
         <p role="status" className="mt-4 px-gutter text-[15px] text-danger">
           {staleCount === 1
-            ? "A customised item uses a colour or part that’s no longer available, so this order can’t be placed. "
-            : `${staleCount} customised items use a colour or part that’s no longer available, so this order can’t be placed. `}
+            ? "A customised item can’t be ordered as designed right now, so this order can’t be placed. "
+            : `${staleCount} customised items can’t be ordered as designed right now, so this order can’t be placed. `}
           <Link href="/bag" className="font-medium text-ink underline">
             Recreate or remove {staleCount === 1 ? "it" : "them"} in your bag
           </Link>

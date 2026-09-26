@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { cn } from "@/lib/cn";
-import { STALE_DESIGN_MESSAGE } from "@/lib/customizationCheck";
+import { CUSTOMISATION_UNAVAILABLE_MESSAGE, STALE_DESIGN_MESSAGE } from "@/lib/customizationCheck";
 import { hasCustomizerPage } from "@/lib/data/customizerPages";
 import { getCustomizationConfig } from "@/lib/data/supabaseCatalog";
 import { MAX_CART_QUANTITY } from "@/lib/data/userCart";
@@ -68,13 +68,16 @@ export function BagItemRow({
   onQuantityChange,
   onSelectedChange,
   onRemoveRequest,
-  stale = false,
+  designProblem = null,
   className,
 }: {
   item: CartItem;
   product: BagProduct;
-  /** Its design uses a part or colour the customiser no longer has (can't be ordered). */
-  stale?: boolean;
+  /**
+   * Why its design can't be ordered: the shoe isn't customisable now
+   * ("unavailable"), or a part or colour no longer exists ("stale").
+   */
+  designProblem?: "unavailable" | "stale" | null;
   onQuantityChange: (quantity: number) => void;
   onSelectedChange: (selected: boolean) => void;
   onRemoveRequest: () => void;
@@ -134,8 +137,9 @@ export function BagItemRow({
               height={22}
               className="h-[22px] w-6 object-cover"
             />
-            {/* Only when the customiser page exists; otherwise the label stays, with no link to a 404. */}
-            {hasCustomizerPage(product.slug) && (
+            {/* Only when the customiser page exists and the shoe is still customisable; otherwise
+                the label stays, with no link to a 404 or a customiser that won't open. */}
+            {hasCustomizerPage(product.slug) && designProblem !== "unavailable" && (
               <Link
                 href={`/products/${product.slug}/customise?item=${encodeURIComponent(item.id)}`}
                 aria-label={`Edit the customisation of ${product.name}, size ${sizeLabel}`}
@@ -149,9 +153,9 @@ export function BagItemRow({
         <h2 className={cn("truncate text-body font-medium", customised && "mt-[25px]")}>
           {product.name}
         </h2>
-        {stale && (
+        {designProblem && (
           <p role="alert" className="mt-1 text-[15px] text-danger [overflow-wrap:anywhere]">
-            {STALE_DESIGN_MESSAGE}
+            {designProblem === "unavailable" ? CUSTOMISATION_UNAVAILABLE_MESSAGE : STALE_DESIGN_MESSAGE}
           </p>
         )}
         <p className="mt-px truncate text-secondary text-ink/30">{product.category}</p>

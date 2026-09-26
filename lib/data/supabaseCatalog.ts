@@ -118,6 +118,7 @@ interface CustomizationConfigRow {
     slug: string;
     price: number;
     discount_label: string | null;
+    is_customizable: boolean;
     product_sizes: ProductSizeRow[];
   } | null;
   customization_parts: { id: string; name: string; sort_order: number }[];
@@ -309,7 +310,7 @@ export async function getCustomizationConfig(productId: string): Promise<Customi
     .from("customization_configs")
     .select(
       "product_id, title, display_category, wordmark, image_url, angles, " +
-        "product:products(slug, price, discount_label, product_sizes(size_uk, is_default, sort_order)), " +
+        "product:products(slug, price, discount_label, is_customizable, product_sizes(size_uk, is_default, sort_order)), " +
         "customization_parts(id, name, sort_order), " +
         "customization_colours(id, name, hex, sort_order)",
     )
@@ -340,5 +341,6 @@ export async function getCustomizationConfig(productId: string): Promise<Customi
     angles: data.angles,
     parts: bySortOrder(data.customization_parts).map(({ id, name }) => ({ id, name })),
     colours: bySortOrder(data.customization_colours).map(({ id, name, hex }) => ({ id, name, hex })),
+    customizable: data.product.is_customizable,
   };
 }

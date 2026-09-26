@@ -1,4 +1,4 @@
-import { designMatches, STALE_DESIGN_MESSAGE } from "@/lib/customizationCheck";
+import { CUSTOMISATION_UNAVAILABLE_MESSAGE, designMatches, STALE_DESIGN_MESSAGE } from "@/lib/customizationCheck";
 import { CatalogueDataError, getCustomizationConfig } from "@/lib/data/supabaseCatalog";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { ensureGuestSession } from "@/lib/supabase/guestSession";
@@ -221,12 +221,14 @@ async function assertDesignCurrent(action: string, productId: string, design: Cu
   try {
     config = await getCustomizationConfig(productId);
   } catch (error) {
-    // A broken customiser setup: no design for it can be ordered.
-    if (error instanceof CatalogueDataError) throw new CartError(action, { message: STALE_DESIGN_MESSAGE });
+    // A broken customiser setup: the shoe can't be customised at the moment.
+    if (error instanceof CatalogueDataError) throw new CartError(action, { message: CUSTOMISATION_UNAVAILABLE_MESSAGE });
     throw error;
   }
-  const options = config && { partIds: config.parts.map((p) => p.id), colourIds: config.colours.map((c) => c.id) };
-  if (!options || !designMatches(design, options)) throw new CartError(action, { message: STALE_DESIGN_MESSAGE });
+  // No customiser, or switched off in admin (is_customizable).
+  if (!config || !config.customizable) throw new CartError(action, { message: CUSTOMISATION_UNAVAILABLE_MESSAGE });
+  const options = { partIds: config.parts.map((p) => p.id), colourIds: config.colours.map((c) => c.id) };
+  if (!designMatches(design, options)) throw new CartError(action, { message: STALE_DESIGN_MESSAGE });
 }
 
 async function updateRows(action: string, values: Record<string, unknown>, ids: string[] | "all") {
@@ -350,7 +352,7 @@ async function customizationIsValid(item: CartItem, configs: Map<string, Awaited
     configs.set(item.productId, config);
   }
   const config = configs.get(item.productId);
-  if (!config) return false;
+  if (!config || !config.customizable) return false;
   return designMatches(item.customization, {
     partIds: config.parts.map((p) => p.id),
     colourIds: config.colours.map((c) => c.id),

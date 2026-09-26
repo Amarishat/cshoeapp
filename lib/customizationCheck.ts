@@ -19,6 +19,22 @@ export interface CustomizerOptions {
 export const STALE_DESIGN_MESSAGE =
   "This saved design uses a colour or part that’s no longer available. Please recreate it.";
 
+/** What the customer is told when the shoe isn't customisable now (flag off, or no usable customiser). */
+export const CUSTOMISATION_UNAVAILABLE_MESSAGE = "Customisation isn’t available for this shoe right now.";
+
+/**
+ * Why a Bag item's design can't be ordered, or null when it can (or it's a
+ * plain item): "unavailable" when the shoe isn't customisable now — its
+ * is_customizable flag is off or it has no usable customiser (the Bag
+ * catalogue only carries a customiser for customisable products) — or
+ * "stale" when a chosen part or colour no longer exists.
+ */
+export function designProblem(item: CartItem, product: BagProduct | undefined): "unavailable" | "stale" | null {
+  if (!item.customization || Object.keys(item.customization).length === 0) return null;
+  if (!product?.customizer) return "unavailable";
+  return designMatches(item.customization, product.customizer) ? null : "stale";
+}
+
 /** Whether every chosen part and colour still exists (an empty design always fits). */
 export function designMatches(selection: CustomizationSelection, options: CustomizerOptions): boolean {
   return Object.entries(selection).every(
@@ -27,11 +43,7 @@ export function designMatches(selection: CustomizationSelection, options: Custom
   );
 }
 
-/**
- * Whether a Bag item's design can't be ordered: it has a design, and its
- * product has no usable customiser now or the design no longer fits it.
- */
+/** Whether a Bag item's design can't be ordered, for either reason (see designProblem). */
 export function isStaleDesign(item: CartItem, product: BagProduct | undefined): boolean {
-  if (!item.customization || Object.keys(item.customization).length === 0) return false;
-  return !product?.customizer || !designMatches(item.customization, product.customizer);
+  return designProblem(item, product) !== null;
 }

@@ -1,3 +1,4 @@
+import { CUSTOMISATION_UNAVAILABLE_MESSAGE } from "@/lib/customizationCheck";
 import { getCustomizationConfig } from "@/lib/data/supabaseCatalog";
 import type { CustomizationConfig } from "@/lib/types";
 
@@ -35,6 +36,8 @@ export async function loadCustomizerPage(slug: string): Promise<CustomizationCon
 
   const config = await getCustomizationConfig(page.productId);
   if (!config) throw new Error(`Product "${page.productId}" has no customisation in the catalogue.`);
+  // Switched off in admin: the customiser isn't offered, even though its setup exists.
+  if (!config.customizable) throw new Error(CUSTOMISATION_UNAVAILABLE_MESSAGE);
 
   if (config.parts.length === 0 || config.colours.length === 0 || config.angles.length === 0) {
     const missing = [

@@ -170,6 +170,8 @@ export interface CustomizationConfig {
   angles: ViewerAngle[];
   parts: CustomizationPart[];
   colours: CustomizationColour[];
+  /** The product's is_customizable flag: off means customising isn't offered, even with a customiser. */
+  customizable: boolean;
 }
 
 export interface CartItem {

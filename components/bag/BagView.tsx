@@ -7,7 +7,7 @@ import { CatalogueError } from "@/components/product/CatalogueStatus";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { isStaleDesign } from "@/lib/customizationCheck";
+import { designProblem, isStaleDesign } from "@/lib/customizationCheck";
 import { loadBagCatalogue } from "@/lib/data/bagCatalogue";
 import { computeBagTotals, formatAmount, formatPrice, isSelected } from "@/lib/pricing";
 import { useBagStore } from "@/lib/store/bag";
@@ -179,7 +179,7 @@ function BagContents({ catalog }: { catalog: Record<string, BagProduct> }) {
             className={index > 0 ? "mt-10 border-t border-[#d9d9d9] pt-10" : undefined}
             item={item}
             product={catalog[item.productId]}
-            stale={isStaleDesign(item, catalog[item.productId])}
+            designProblem={designProblem(item, catalog[item.productId])}
             onQuantityChange={(quantity) => setQuantity(item.id, quantity)}
             onSelectedChange={(selected) => setSelected(item.id, selected)}
             onRemoveRequest={() => setPendingRemoval(item.id)}
