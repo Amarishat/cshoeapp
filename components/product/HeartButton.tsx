@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { useWishlistStore } from "@/lib/store/wishlist";
 
@@ -10,12 +10,21 @@ const HEART_43 =
 const HEART_30 =
   "M20.625 5.32321C22.0794 5.32321 23.2823 5.83929 24.2666 6.87985C25.2522 7.92181 25.75 9.20684 25.75 10.7695C25.75 11.5874 25.607 12.4038 25.3184 13.2197C25.0319 14.0287 24.5201 14.9562 23.7646 16.0039C23.0095 17.051 21.9757 18.2703 20.6582 19.664C19.6689 20.7099 18.4734 21.9166 17.0713 23.2842L15.6006 24.705L14.999 25.2793L14.3984 24.706H14.3994C12.872 23.2311 11.5439 21.9172 10.415 20.7636L9.35254 19.6631C8.02751 18.2693 6.99007 17.0494 6.23535 16.0019C5.47964 14.9531 4.96804 14.0262 4.68164 13.2197C4.39248 12.4053 4.24926 11.5898 4.25 10.7705V10.7695C4.25003 9.20684 4.74784 7.92181 5.7334 6.87985C6.71771 5.8393 7.9206 5.32321 9.375 5.32321C10.3794 5.32321 11.3202 5.59328 12.2061 6.1406C13.0933 6.6888 13.886 7.49523 14.5781 8.57907L15 9.23923L15.4219 8.57907C16.114 7.49523 16.9066 6.6888 17.7939 6.1406C18.6798 5.59328 19.6206 5.32321 20.625 5.32321Z";
 
+/** How long the "couldn't update" message stays (as the Share button's feedback). */
+const FEEDBACK_MS = 2500;
+
+const FAILED = "Couldn’t update your wishlist. Try again.";
+
 /**
  * Wishlist toggle — outlined heart when off, filled black when on (the filled
  * state appears on the Brand Nike frame).
  *
  * - `card` (Home "Group 126"): 43×41 white ellipse with a #CCC outline.
  * - `image` (Product gallery): 39px white circle, no outline, 30px heart.
+ *
+ * If the save fails, the heart stays as it was (it only changes once Supabase
+ * has saved) and a short message appears under it, in the Share button's
+ * feedback style. `className` positions the whole control, message included.
  */
 export function HeartButton({
   productId,
@@ -32,37 +41,68 @@ export function HeartButton({
   const toggle = useWishlistStore((s) => s.toggle);
   // One change at a time: the heart only fills once Supabase has saved it.
   const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const heartFill = saved ? "black" : "white";
+
+  useEffect(() => () => clearTimeout(timer.current), []);
 
   function onToggle() {
     if (saving) return;
     setSaving(true);
-    void toggle(productId).finally(() => setSaving(false));
+    setFailed(false);
+    clearTimeout(timer.current);
+    void toggle(productId)
+      .then((error) => {
+        // null = saved; anything else is why it wasn't (the heart is unchanged).
+        if (error === null) return;
+        setFailed(true);
+        timer.current = setTimeout(() => setFailed(false), FEEDBACK_MS);
+      })
+      .finally(() => setSaving(false));
   }
 
+  // The caller's classes position the control (e.g. "absolute …" on a card);
+  // otherwise it's the anchor for the message itself.
+  const positioned = /(^|\s)(absolute|fixed|relative|sticky)(\s|$)/.test(className ?? "");
+
   return (
-    <button
-      type="button"
-      aria-pressed={saved}
-      aria-label={saved ? `Remove ${productName} from wishlist` : `Add ${productName} to wishlist`}
-      onClick={onToggle}
-      className={cn(variant === "card" ? "h-[41px] w-[43px]" : "size-[39px]", className)}
-    >
-      {variant === "card" ? (
-        <svg viewBox="0 0 43 41" width="43" height="41" aria-hidden className="block">
-          <path
-            d="M21.5 0.5C33.1207 0.5 42.5 9.47648 42.5 20.5C42.5 31.5235 33.1207 40.5 21.5 40.5C9.87931 40.5 0.5 31.5235 0.5 20.5C0.5 9.47648 9.87931 0.5 21.5 0.5Z"
-            fill="white"
-            stroke="#CCCCCC"
-          />
-          <path d={HEART_43} fill={heartFill} stroke="black" />
-        </svg>
-      ) : (
-        <svg viewBox="0 0 39 39" width="39" height="39" aria-hidden className="block">
-          <circle cx="19.5" cy="19.5" r="19.5" fill="white" />
-          <path d={HEART_30} transform="translate(4.5 4.5)" fill={heartFill} stroke="black" />
-        </svg>
-      )}
-    </button>
+    <span className={cn(!positioned && "relative", className ?? "inline-flex")}>
+      <button
+        type="button"
+        aria-pressed={saved}
+        aria-label={saved ? `Remove ${productName} from wishlist` : `Add ${productName} to wishlist`}
+        onClick={onToggle}
+        className={cn("block", variant === "card" ? "h-[41px] w-[43px]" : "size-[39px]")}
+      >
+        {variant === "card" ? (
+          <svg viewBox="0 0 43 41" width="43" height="41" aria-hidden className="block">
+            <path
+              d="M21.5 0.5C33.1207 0.5 42.5 9.47648 42.5 20.5C42.5 31.5235 33.1207 40.5 21.5 40.5C9.87931 40.5 0.5 31.5235 0.5 20.5C0.5 9.47648 9.87931 0.5 21.5 0.5Z"
+              fill="white"
+              stroke="#CCCCCC"
+            />
+            <path d={HEART_43} fill={heartFill} stroke="black" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 39 39" width="39" height="39" aria-hidden className="block">
+            <circle cx="19.5" cy="19.5" r="19.5" fill="white" />
+            <path d={HEART_30} transform="translate(4.5 4.5)" fill={heartFill} stroke="black" />
+          </svg>
+        )}
+      </button>
+      {/* Under the heart, right-aligned to it and at most 160px wide (wrapping),
+          so it stays inside a product card even at 360px; it never moves anything. */}
+      <span
+        role="alert"
+        className={
+          failed
+            ? "absolute top-full right-0 z-50 mt-2 w-max max-w-[160px] rounded-2xl bg-ink px-2.5 py-1 text-[12px] font-medium text-white"
+            : "sr-only"
+        }
+      >
+        {failed ? FAILED : ""}
+      </span>
+    </span>
   );
 }
