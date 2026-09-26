@@ -20,6 +20,9 @@ import { SwipeToAdd } from "./SwipeToAdd";
 
 const EMPTY: CustomizationSelection = {};
 
+/** Shown instead of adding (or saving) a design with no colour chosen: the customiser only adds customised shoes. */
+const NO_COLOUR_MESSAGE = "Choose a colour for at least one part to customise this shoe.";
+
 /**
  * Customizer body — Figma frame 1:6606 (everything below the header).
  * `cartItemId` (from the Bag's Edit link) switches to editing that Bag item's
@@ -90,11 +93,15 @@ export function CustomizerView({
     else setColour(config.productId, part.id, colourId);
     const colour = config.colours.find((c) => c.id === colourId);
     setAnnouncement(`${part.name} set to ${colour?.name ?? colourId}`);
+    // A colour is chosen now, so "choose a colour" no longer applies.
+    setAddError((current) => (current === NO_COLOUR_MESSAGE ? "" : current));
   }
 
   async function onAdd() {
     if (adding || waitingForItem) return;
     if (stale) return void setAddError(STALE_DESIGN_MESSAGE);
+    // Nothing chosen would add (or save) a plain shoe: ask for a colour instead.
+    if (Object.keys(selection).length === 0) return void setAddError(NO_COLOUR_MESSAGE);
     if (editing) return void saveEdit();
     const customised = Object.keys(selection).length > 0;
     setAdding(true);
