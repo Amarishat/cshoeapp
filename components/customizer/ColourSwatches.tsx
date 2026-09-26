@@ -7,6 +7,10 @@ import type { CustomizationColour } from "@/lib/types";
 /**
  * Colour row (Figma 1:6676): six 43×40 ellipses spread over 353px. The
  * selected swatch gets a thin black ring (Figma has no selected state).
+ *
+ * A grid of fixed 43px columns, spread edge to edge with at least 10px
+ * between them: six colours fill one row as in Figma (even at 360px), and
+ * more wrap onto further rows instead of overflowing or crowding the ring.
  */
 export function ColourSwatches({
   colours,
@@ -38,7 +42,7 @@ export function ColourSwatches({
     <div
       role="radiogroup"
       aria-label={`${partName} colour`}
-      className="mx-auto flex w-full max-w-[353px] justify-between"
+      className="mx-auto grid w-full max-w-[353px] grid-cols-[repeat(auto-fill,43px)] justify-between gap-x-2.5 gap-y-3"
     >
       {colours.map((colour, index) => {
         const selected = colour.id === value;
