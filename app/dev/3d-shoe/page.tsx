@@ -12,7 +12,7 @@ export default function Dev3dShoePage() {
       <div>
         <h1 className="text-heading font-semibold">3D shoe test</h1>
         <p className="mt-1 text-secondary text-ink/60">
-          Nike Air Force from /models/cshoe-airforce.glb. Drag to rotate, scroll or pinch to zoom.
+          Nike Air Force from /models/cshoe-airforce-clean.glb. Drag to rotate, scroll or pinch to zoom.
         </p>
       </div>
       <ShoeViewerLoader />
