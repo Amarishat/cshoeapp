@@ -14,7 +14,7 @@ import { useBagHydrated } from "@/lib/store/useBagHydrated";
 import type { CustomizationConfig, CustomizationSelection } from "@/lib/types";
 import { ColourSwatches } from "./ColourSwatches";
 import { PartStepper } from "./PartStepper";
-import { ShoeViewer } from "./ShoeViewer";
+import { ShoeViewer3D } from "./ShoeViewer3D";
 import { SizeChipList } from "./SizeChipList";
 import { SwipeToAdd } from "./SwipeToAdd";
 
@@ -143,7 +143,7 @@ export function CustomizerView({
 
   return (
     <div className="pb-[121px]">
-      <ShoeViewer angles={config.angles} wordmark={config.wordmark}>
+      <ShoeViewer3D selection={selection} colours={config.colours} wordmark={config.wordmark}>
         <p
           id="customizer-size-label"
           className="absolute text-body font-semibold tracking-[0.2475px]"
@@ -164,7 +164,7 @@ export function CustomizerView({
           className="absolute -translate-x-1/2"
           style={{ left: "50%", top: u(496) }}
         />
-      </ShoeViewer>
+      </ShoeViewer3D>
 
       <div className="mt-6">
         <PartStepper
