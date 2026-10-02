@@ -4,7 +4,7 @@ import { Bounds, Center, ContactShadows, OrbitControls, useGLTF, useProgress } f
 import { Canvas, useThree } from "@react-three/fiber";
 import { Component, Suspense, useLayoutEffect, useMemo, type ReactNode } from "react";
 import { Box3, Vector3 } from "three";
-import { applyPartColours, SHOE_MODEL_URL } from "./shoeModel";
+import { applyPartColours, SHOE_LIGHTS, SHOE_MODEL_URL } from "./shoeModel";
 
 type ShoeProps = {
   /** Part id → hex; a part with none stays as modelled. */
@@ -101,11 +101,13 @@ export function ShoeCanvas3D({ hexByPart }: ShoeProps) {
     <ModelErrorBoundary>
       {/* A three-quarter side view: the shoe runs along its z-axis. */}
       <Canvas camera={{ position: [2.4, 0.9, 1.4], fov: 40 }} dpr={[1, 2]}>
-        <ambientLight intensity={0.35} />
-        <hemisphereLight args={["#ffffff", "#c9c9c9", 0.55]} />
-        <directionalLight position={[3, 5, 3]} intensity={1.7} />
-        <directionalLight position={[-3, 2, -1]} intensity={0.45} />
-        <directionalLight position={[-1, 3, -4]} intensity={0.6} />
+        <ambientLight intensity={SHOE_LIGHTS.ambient} />
+        <hemisphereLight
+          args={[SHOE_LIGHTS.hemisphere.sky, SHOE_LIGHTS.hemisphere.ground, SHOE_LIGHTS.hemisphere.intensity]}
+        />
+        {SHOE_LIGHTS.directional.map((light, i) => (
+          <directionalLight key={i} position={light.position} intensity={light.intensity} />
+        ))}
         <Suspense fallback={null}>
           <FittedShoe hexByPart={hexByPart} />
         </Suspense>

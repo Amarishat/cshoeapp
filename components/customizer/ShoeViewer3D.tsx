@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useMemo, type ReactNode } from "react";
 import { bannerUnit, u } from "@/components/home/banner";
 import type { CustomizationColour, CustomizationSelection } from "@/lib/types";
+import { partHexes } from "./partHexes";
 
 /** The design width/height of the viewer area in Figma 1:6606 (y 107–634), as ShoeViewer. */
 const DESIGN_W = 430;
@@ -41,14 +42,7 @@ export function ShoeViewer3D({
   wordmark: string;
   children?: ReactNode;
 }) {
-  const hexByPart = useMemo(() => {
-    const hexes: Record<string, string> = {};
-    for (const [partId, colourId] of Object.entries(selection)) {
-      const colour = colours.find((c) => c.id === colourId);
-      if (colour) hexes[partId] = colour.hex;
-    }
-    return hexes;
-  }, [selection, colours]);
+  const hexByPart = useMemo(() => partHexes(selection, colours), [selection, colours]);
 
   return (
     <div className="@container">
