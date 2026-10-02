@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { CustomisedShoeThumbnail } from "@/components/customizer/CustomisedShoeThumbnail";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { cn } from "@/lib/cn";
@@ -55,6 +56,47 @@ function CustomizationDetails({
   );
 }
 
+/** The product's own image (cut-out or customiser image), filling the image box. */
+function ProductImage({ product }: { product: BagProduct }) {
+  return (
+    <Image
+      src={product.image.src}
+      alt={product.name}
+      fill
+      sizes="150px"
+      className={product.image.fit === "cover" ? "object-cover" : "object-contain"}
+    />
+  );
+}
+
+/**
+ * A customised item's image in its own colours. The product's image shows until
+ * the customiser's colours have loaded, and if they can't be.
+ */
+function DesignImage({
+  productId,
+  selection,
+  product,
+}: {
+  productId: string;
+  selection: CustomizationSelection;
+  product: BagProduct;
+}) {
+  const { state } = useCatalogueLoad(loadCustomizationConfig, productId);
+  const colours = state.status === "ready" ? state.data?.colours : undefined;
+  if (!colours) return <ProductImage product={product} />;
+  return (
+    <CustomisedShoeThumbnail
+      productId={productId}
+      selection={selection}
+      colours={colours}
+      fallback={product.image}
+      alt={`${product.name} in your design`}
+      sizes="150px"
+    />
+  );
+}
+
 /**
  * One bag item (Figma 1:2782 / 1:2755 / 1:2734): checkbox, shoe cut-out with a
  * soft shadow, "Qty" + pill stepper underneath; details column 186px in with
@@ -99,13 +141,13 @@ export function BagItemRow({
           className="relative mt-[6px] ml-[29px] h-[133px] w-[calc(100%-29px)] max-w-[150px]"
           style={{ filter: "drop-shadow(0 4px 4px rgba(0,0,0,0.25))" }}
         >
-          <Image
-            src={product.image.src}
-            alt={product.name}
-            fill
-            sizes="150px"
-            className={product.image.fit === "cover" ? "object-cover" : "object-contain"}
-          />
+          {/* A design that can still be ordered shows in its own colours on the customiser's
+              3D shoe; anything else shows the product's image. */}
+          {customised && item.customization && hasCustomizerPage(product.slug) && !designProblem ? (
+            <DesignImage productId={item.productId} selection={item.customization} product={product} />
+          ) : (
+            <ProductImage product={product} />
+          )}
         </div>
         <div className="mt-[9px] ml-[29px] flex items-center gap-[11px]">
           <span id={`qty-${item.id}`} className="text-body font-medium">

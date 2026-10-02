@@ -4,6 +4,21 @@ import { Color, Mesh, type Material, type Object3D } from "three";
 export const SHOE_MODEL_URL = "/models/cshoe-airforce-clean.glb";
 
 /**
+ * The shoe's lights, as verified on /dev/3d-shoe: a key light from above-front,
+ * a softer fill and a rim light. Shared by the 3D viewer and its thumbnails so
+ * both show the same colours.
+ */
+export const SHOE_LIGHTS = {
+  ambient: 0.35,
+  hemisphere: { sky: "#ffffff", ground: "#c9c9c9", intensity: 0.55 },
+  directional: [
+    { position: [3, 5, 3], intensity: 1.7 },
+    { position: [-3, 2, -1], intensity: 0.45 },
+    { position: [-1, 3, -4], intensity: 0.6 },
+  ],
+} as const;
+
+/**
  * The GLB objects that make up each customisable part, keyed by database part
  * id (customization_parts.id). Objects are matched by their original GLB name
  * (see applyPartColours). The model holds two overlapping copies of the shoe
