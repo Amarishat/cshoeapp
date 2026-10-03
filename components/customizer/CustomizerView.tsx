@@ -24,6 +24,14 @@ const EMPTY: CustomizationSelection = {};
 const NO_COLOUR_MESSAGE = "Choose a colour for at least one part to customise this shoe.";
 
 /**
+ * Parts the customer can't choose a colour for. The 3D model has no separate
+ * heel-counter panel (that area is part of the quarter meshes), so a colour
+ * for it would never show. Hidden from the part picker only: designs that
+ * already include it stay valid, since every check uses all of config.parts.
+ */
+const HIDDEN_PART_IDS: ReadonlySet<string> = new Set(["heel-counter"]);
+
+/**
  * Customizer body — Figma frame 1:6606 (everything below the header).
  * `cartItemId` (from the Bag's Edit link) switches to editing that Bag item's
  * design: the saved design is loaded, and saving updates that row instead of
@@ -71,7 +79,8 @@ export function CustomizerView({
 
   useEffect(() => () => clearTimeout(addedTimer.current), []);
 
-  const part = config.parts[partIndex];
+  const selectableParts = config.parts.filter((p) => !HIDDEN_PART_IDS.has(p.id));
+  const part = selectableParts[partIndex];
   const partColour = config.colours.find((c) => c.id === selection[part.id]);
   // A saved design (device draft or Bag item) that names a part or colour this
   // customiser no longer has can't be ordered: say so now, don't let it be
@@ -168,7 +177,7 @@ export function CustomizerView({
 
       <div className="mt-6">
         <PartStepper
-          parts={config.parts}
+          parts={selectableParts}
           index={partIndex}
           onIndexChange={setPartIndex}
           colour={partColour}
