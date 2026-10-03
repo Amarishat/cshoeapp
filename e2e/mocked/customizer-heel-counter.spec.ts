@@ -181,4 +181,10 @@ test("editing a Bag item keeps its heel-counter colour when another part changes
   // Only the design is saved, and the heel-counter colour is still in it.
   expect((await update).postDataJSON()).toEqual({ customization: edited });
   await expect(page).toHaveURL(/\/bag$/);
+  // Let the Bag finish loading before the test ends, so its catalogue reads are answered by the
+  // mocks above rather than cut off as the page closes. With no products in the catalogue
+  // (products: []), the Bag lists the item as unavailable (BagView's UnavailableItems note).
+  await expect(page.getByRole("status").filter({ hasText: "isn’t available right now" })).toHaveText(
+    "1 item in your bag isn’t available right now and can’t be ordered. Remove it",
+  );
 });
