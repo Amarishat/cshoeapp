@@ -1,23 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Jost, Sora } from "next/font/google";
+import { preload } from "react-dom";
+import "./fonts.css";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-});
-
-const sora = Sora({
-  variable: "--font-sora",
-  subsets: ["latin"],
-});
-
-// Banner headlines only (stands in for Figma's Futura Md BT).
-const jost = Jost({
-  variable: "--font-jost",
-  subsets: ["latin"],
-  weight: "500",
-});
+// Self-hosted fonts (app/fonts.css). Preload only the Latin subsets, as
+// next/font/google did with subsets: ["latin"].
+const PRELOADED_FONTS = [
+  "/fonts/inter-latin.woff2",
+  "/fonts/sora-latin.woff2",
+  "/fonts/jost-500-latin.woff2",
+];
 
 export const metadata: Metadata = {
   title: {
@@ -35,8 +27,12 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
+  for (const href of PRELOADED_FONTS) {
+    preload(href, { as: "font", type: "font/woff2", crossOrigin: "anonymous" });
+  }
+
   return (
-    <html lang="en" className={`${inter.variable} ${sora.variable} ${jost.variable} antialiased`}>
+    <html lang="en" className="antialiased">
       <body className="font-sans">
         {/* The guest session, the customer stores and the 430px app column
             belong to the customer app, so the (tabs) and (stack) layouts
