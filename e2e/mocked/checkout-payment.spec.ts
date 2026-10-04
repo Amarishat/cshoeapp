@@ -1,4 +1,4 @@
-import { expect, test } from "../support/mocked-test";
+import { expect, test, type Page, type Request, type SupabaseMocks } from "../support/mocked-test";
 
 /*
  * Checkout · Payment for a guest with one selected, customised Bag item. Paying is simulated: after
@@ -195,4 +195,114 @@ test("paying sends the shown total to place_order and shows the new order", asyn
   await expect(page.getByText(ORDER_NUMBER, { exact: true })).toBeVisible();
   await expect(page.getByText(`₹${EXPECTED_TOTAL.toLocaleString("en-IN")}`, { exact: true })).toBeVisible();
   await expect(page.getByText("Arriving by", { exact: true })).toBeVisible();
+});
+
+/**
+ * The payment screen's setup, as in the test above: the chosen address planted on the device and
+ * the reads Payment makes (Bag, its catalogue, the addresses). place_order() is mocked by each test.
+ */
+async function setUpPayment(page: Page, supabase: SupabaseMocks) {
+  await page.addInitScript(
+    ({ value }) => {
+      try {
+        window.localStorage.setItem("cs-checkout", value);
+      } catch {
+        // Storage unavailable (e.g. about:blank): nothing to plant.
+      }
+    },
+    { value: JSON.stringify({ state: { selectedAddressId: ADDRESS_ID }, version: 1 }) },
+  );
+  supabase.mock({ method: "GET", path: "/rest/v1/cart_items", json: [CART_ROW] });
+  supabase.mock({ method: "GET", path: "/rest/v1/products", json: [PRODUCT_ROW] });
+  supabase.mock({ method: "GET", path: "/rest/v1/customization_configs", json: [CONFIG_ROW] });
+  supabase.mock({ method: "GET", path: "/rest/v1/addresses", json: [ADDRESS_ROW] });
+}
+
+/** The app's next place_order() request. */
+function nextPlaceOrder(page: Page): Promise<Request> {
+  return page.waitForRequest(
+    (request) => request.method() === "POST" && new URL(request.url()).pathname === "/rest/v1/rpc/place_order",
+  );
+}
+
+/** What place_order() must be sent for this checkout: the chosen address and app, and the shown total. */
+const EXPECTED_PLACE_ORDER_BODY = { p_address_id: ADDRESS_ID, p_upi_app: "phonepe", p_expected_total: EXPECTED_TOTAL };
+
+test("A failed order shows why, keeps the checkout, and Try again places it", async ({ page, supabase }) => {
+  await setUpPayment(page, supabase);
+  // A temporary failure (not one of place_order()'s "review your bag" refusals). POST requests
+  // aren't retried by postgrest-js, so this fails once.
+  supabase.mock({
+    method: "POST",
+    path: "/rest/v1/rpc/place_order",
+    status: 500,
+    json: { code: "XX000", message: "synthetic: temporary failure", details: null, hint: null },
+  });
+
+  await page.goto("/checkout/payment");
+  const phonePe = page.getByRole("radiogroup", { name: "UPI app", exact: true }).getByRole("radio", { name: "PhonePe", exact: true });
+  await phonePe.click();
+  await expect(phonePe).toHaveAttribute("aria-checked", "true");
+  const pay = page.getByRole("button", { name: "Pay using PhonePe", exact: true });
+
+  const firstAttempt = nextPlaceOrder(page);
+  await pay.click();
+  const firstBody: unknown = (await firstAttempt).postDataJSON();
+  expect(firstBody).toEqual(EXPECTED_PLACE_ORDER_BODY);
+
+  // Why, with a retry (CatalogueError); still on Payment, ready to pay again with the same choices.
+  const failure = page.getByRole("alert").filter({ hasText: "Your order couldn’t be placed." });
+  await expect(failure).toBeVisible();
+  await expect(failure).toContainText("Could not place your order: synthetic: temporary failure");
+  const tryAgain = failure.getByRole("button", { name: "Try again", exact: true });
+  await expect(tryAgain).toBeVisible();
+  await expect(page.getByText("Processing payment…", { exact: true })).toHaveCount(0);
+  await expect(page).toHaveURL(/\/checkout\/payment$/);
+  await expect(pay).toBeEnabled();
+  await expect(phonePe).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("link", { name: "Review your bag", exact: true })).toHaveCount(0);
+
+  // The next attempt succeeds (registered now; the latest matching mock wins), and Payment Success
+  // reads the order back.
+  supabase.mock({ method: "POST", path: "/rest/v1/rpc/place_order", json: ORDER_NUMBER });
+  supabase.mock({ method: "GET", path: "/rest/v1/orders", json: [ORDER_ROW] });
+
+  const secondAttempt = nextPlaceOrder(page);
+  await tryAgain.click();
+  // Same address, app and total: the checkout was kept.
+  expect((await secondAttempt).postDataJSON()).toEqual(firstBody);
+
+  await expect(page).toHaveURL(new RegExp(`/payment-success\\?order=${ORDER_NUMBER}$`), { timeout: 15_000 });
+  await expect(page.getByRole("status").filter({ hasText: "Payment Successful" })).toBeVisible();
+  await expect(page.getByText(ORDER_NUMBER, { exact: true })).toBeVisible();
+});
+
+test("an order the database refuses as changed asks the customer to review the bag", async ({ page, supabase }) => {
+  await setUpPayment(page, supabase);
+  // place_order()'s REVIEW_BAG_CODE (55000) refusal, with migration 023's message for a changed total.
+  const refusal =
+    "Your bag has changed since you reviewed it: the total is now ₹12,000. Review your bag and try again.";
+  supabase.mock({
+    method: "POST",
+    path: "/rest/v1/rpc/place_order",
+    status: 400,
+    json: { code: "55000", message: refusal, details: null, hint: null },
+  });
+
+  await page.goto("/checkout/payment");
+  const pay = page.getByRole("button", { name: "Pay using Google Pay", exact: true });
+
+  const attempt = nextPlaceOrder(page);
+  await pay.click();
+  expect((await attempt).postDataJSON()).toEqual({ ...EXPECTED_PLACE_ORDER_BODY, p_upi_app: "gpay" });
+
+  // Why, and the way forward: review the Bag (trying again as-is would be refused the same way).
+  const failure = page.getByRole("alert").filter({ hasText: "Your order couldn’t be placed." });
+  await expect(failure).toBeVisible();
+  await expect(failure).toContainText(`Could not place your order: ${refusal}`);
+  await expect(failure.getByRole("link", { name: "Review your bag", exact: true })).toHaveAttribute("href", "/bag");
+  await expect(page.getByRole("button", { name: "Try again", exact: true })).toHaveCount(0);
+  await expect(page.getByText("Processing payment…", { exact: true })).toHaveCount(0);
+  await expect(page).toHaveURL(/\/checkout\/payment$/);
+  await expect(pay).toBeEnabled();
 });
