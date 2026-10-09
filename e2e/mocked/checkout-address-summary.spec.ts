@@ -204,6 +204,20 @@ function nextAddressInsert(page: Page) {
   );
 }
 
+/**
+ * Records every address write (POST / PATCH / PUT / DELETE to /rest/v1/addresses) the page sends, in
+ * order: method, query parameters as [name, value] pairs, and the parsed body.
+ */
+function recordAddressWrites(page: Page) {
+  const writes: { method: string; query: [string, string][]; body: unknown }[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname !== "/rest/v1/addresses" || !["POST", "PATCH", "PUT", "DELETE"].includes(request.method())) return;
+    writes.push({ method: request.method(), query: [...url.searchParams], body: request.postDataJSON() });
+  });
+  return writes;
+}
+
 /** Redacted address inserts, and any updates or deletions, answered so far. */
 function addressWrites(supabase: SupabaseMocks) {
   const handled = supabase.handled;
@@ -450,4 +464,112 @@ test("a failed save keeps the typed address, and retrying saves it once", async 
   const writes = addressWrites(supabase);
   expect(writes.inserts).toHaveLength(2);
   expect(writes.updatesAndDeletes).toEqual([]);
+});
+
+test("saving a new address as the default clears the old default, then makes the new one the default", async ({
+  page,
+  supabase,
+}) => {
+  // One saved address to start with: A, the default (and so the selected one).
+  supabase.mock({ method: "GET", path: "/rest/v1/addresses", json: [ADDRESS_A] });
+
+  await page.goto("/checkout/address");
+  await expect(addressCard(page, "Asha Rao")).toHaveAttribute("aria-checked", "true");
+
+  await fillNewAddress(page);
+  const makeDefault = page.getByRole("checkbox", { name: "Make as default address", exact: true });
+  await makeDefault.click();
+  await expect(makeDefault).toHaveAttribute("aria-checked", "true");
+
+  // createAddress(): the insert (always not the default), then clearDefault() and setDefault(), each
+  // only once the previous request has finished. The PATCH mocks match only their exact filters, so
+  // any other update would be blocked and fail the test. Neither update returns rows (204).
+  supabase.mock({ method: "POST", path: "/rest/v1/addresses", json: { id: NEW_ID } });
+  supabase.mock({
+    method: "PATCH",
+    path: "/rest/v1/addresses",
+    match: (url) =>
+      [...url.searchParams].length === 3 &&
+      url.searchParams.get("user_id") === `eq.${MOCK_GUEST_USER_ID}` &&
+      url.searchParams.get("is_default") === "eq.true" &&
+      url.searchParams.get("id") === `neq.${NEW_ID}`,
+    status: 204,
+  });
+  supabase.mock({
+    method: "PATCH",
+    path: "/rest/v1/addresses",
+    match: (url) =>
+      [...url.searchParams].length === 2 &&
+      url.searchParams.get("user_id") === `eq.${MOCK_GUEST_USER_ID}` &&
+      url.searchParams.get("id") === `eq.${NEW_ID}`,
+    status: 204,
+  });
+  // Then the list is read again: the default has moved from A to the new address.
+  supabase.mock({
+    method: "GET",
+    path: "/rest/v1/addresses",
+    json: [
+      { ...ADDRESS_A, is_default: false },
+      { ...NEW_ADDRESS, is_default: true },
+    ],
+  });
+
+  const writes = recordAddressWrites(page);
+  await page.getByRole("button", { name: "SAVE", exact: true }).click();
+
+  // "Address saved" is shown only after the list is reloaded, so every write has been sent by now.
+  await expect(page.getByRole("status").filter({ hasText: "Address saved" })).toHaveText("Address saved");
+  const expectedWrites = [
+    { method: "POST", query: [["select", "id"]], body: NEW_ADDRESS_INSERT },
+    {
+      method: "PATCH",
+      query: [
+        ["user_id", `eq.${MOCK_GUEST_USER_ID}`],
+        ["is_default", "eq.true"],
+        ["id", `neq.${NEW_ID}`],
+      ],
+      body: { is_default: false },
+    },
+    {
+      method: "PATCH",
+      query: [
+        ["user_id", `eq.${MOCK_GUEST_USER_ID}`],
+        ["id", `eq.${NEW_ID}`],
+      ],
+      body: { is_default: true },
+    },
+  ];
+  expect(writes).toEqual(expectedWrites);
+
+  // The fixture answered exactly those: one insert, two updates, no deletions.
+  const handled = supabase.handled;
+  expect(handled.filter((entry) => entry.startsWith("POST local Supabase /rest/v1/addresses"))).toHaveLength(1);
+  expect(handled.filter((entry) => entry.startsWith("PATCH local Supabase /rest/v1/addresses"))).toHaveLength(2);
+  expect(handled.filter((entry) => entry.startsWith("PATCH ") || entry.startsWith("DELETE "))).toHaveLength(2);
+
+  // Saved: no save error in the form (scoped to it: Next's route announcer is a page-wide, empty
+  // role="alert"), the new address is selected instead of A, and the form is ready for another one.
+  const form = page.getByRole("region", { name: "Add Shipping Address", exact: true });
+  await expect(form).toBeVisible();
+  await expect(form.getByRole("alert")).toHaveCount(0);
+  await expect(addressCard(page, "Divya Menon")).toHaveAttribute("aria-checked", "true");
+  await expect(addressCard(page, "Asha Rao")).toHaveAttribute("aria-checked", "false");
+  await expect(page.getByLabel("Full Name", { exact: true })).toHaveValue("");
+  await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeEnabled();
+
+  // The cards don't show which address is the default; editing one loads it into the form, default included.
+  await page.getByRole("button", { name: "Edit address for Divya Menon", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Edit Shipping Address", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Full Name", { exact: true })).toHaveValue("Divya Menon");
+  await expect(makeDefault).toHaveAttribute("aria-checked", "true");
+
+  await page.getByRole("button", { name: "Edit address for Asha Rao", exact: true }).click();
+  await expect(page.getByLabel("Full Name", { exact: true })).toHaveValue("Asha Rao");
+  await expect(makeDefault).toHaveAttribute("aria-checked", "false");
+
+  // Opening the edit form writes nothing.
+  expect(writes).toEqual(expectedWrites);
+  expect(supabase.handled.filter((entry) => !entry.startsWith("GET "))).toEqual(
+    handled.filter((entry) => !entry.startsWith("GET ")),
+  );
 });
