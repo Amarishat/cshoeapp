@@ -1,4 +1,4 @@
-import { expect, MOCK_GUEST_USER_ID, test, type Page } from "../support/mocked-test";
+import { expect, MOCK_GUEST_USER_ID, test, type Page, type SupabaseMocks } from "../support/mocked-test";
 
 /*
  * Checkout · Address and Checkout · Order Summary for a guest with one selected, customised Bag
@@ -6,8 +6,9 @@ import { expect, MOCK_GUEST_USER_ID, test, type Page } from "../support/mocked-t
  * address out of checkout.
  *
  * Every Supabase request is answered by a mock with synthetic data (no real catalogue, Bag or
- * addresses). These tests make no writes: any write the app attempted would have no mock, so the
- * fixture would block it and fail the test.
+ * addresses), so nothing is ever written to a real backend. Saving an address is answered only where
+ * a test mocks that write; any other write the app attempted would have no mock, so the fixture would
+ * block it and fail the test.
  */
 
 const PRODUCT_ID = "nike-air-force";
@@ -135,11 +136,81 @@ const INVALID_ADDRESS = addressRow({
   created_at: "2026-01-03T00:00:00Z",
 });
 
+/** The id the database would give the new address the save tests add. */
+const NEW_ID = "00000000-0000-4000-8000-0000000add0d";
+/** That new address as listAddresses() reads it back once saved: Office, not the default. */
+const NEW_ADDRESS = addressRow({
+  id: NEW_ID,
+  full_name: "Divya Menon",
+  phone: "9123456780",
+  pincode: "682001",
+  state: "Kerala",
+  city: "Kochi",
+  area: "Fort Kochi",
+  street: "2 Synthetic Lane",
+  type: "office",
+  is_default: false,
+  created_at: "2026-01-04T00:00:00Z",
+});
+/** createAddress()'s insert for it: the trimmed form, for the guest, not the default. */
+const NEW_ADDRESS_INSERT = {
+  full_name: "Divya Menon",
+  phone: "9123456780",
+  pincode: "682001",
+  state: "Kerala",
+  city: "Kochi",
+  area: "Fort Kochi",
+  street: "2 Synthetic Lane",
+  type: "office",
+  user_id: MOCK_GUEST_USER_ID,
+  is_default: false,
+};
+
 /** A saved address card on Checkout · Address (AddressCard: "Deliver to <full name>, …"). */
 function addressCard(page: Page, fullName: string) {
   return page
     .getByRole("radiogroup", { name: "Saved addresses", exact: true })
     .getByRole("radio", { name: new RegExp(`^Deliver to ${fullName},`) });
+}
+
+/** The "Type of address" option for Office in the address form. */
+function officeOption(page: Page) {
+  return page
+    .getByRole("radiogroup", { name: "Type of address", exact: true })
+    .getByRole("radio", { name: "Office", exact: true });
+}
+
+/** Types the new address into the form (Office, default left unticked). The name's spaces are trimmed on save. */
+async function fillNewAddress(page: Page) {
+  await page.getByLabel("Full Name", { exact: true }).fill(" Divya Menon ");
+  await page.getByLabel("Phone Number", { exact: true }).fill("9123456780");
+  await page.getByLabel("Pincode", { exact: true }).fill("682001");
+  // By value: the select's hidden, disabled placeholder option is also labelled "Kerala".
+  await page.getByLabel("State", { exact: true }).selectOption({ value: "Kerala" });
+  await page.getByLabel("City", { exact: true }).fill("Kochi");
+  await page.getByLabel("Area", { exact: true }).fill("Fort Kochi");
+  await page.getByLabel("Street Address", { exact: true }).fill("2 Synthetic Lane");
+  await officeOption(page).click();
+  await expect(page.getByRole("checkbox", { name: "Make as default address", exact: true })).toHaveAttribute(
+    "aria-checked",
+    "false",
+  );
+}
+
+/** Resolves with the next address insert (POST /rest/v1/addresses) the page sends. */
+function nextAddressInsert(page: Page) {
+  return page.waitForRequest(
+    (request) => request.method() === "POST" && new URL(request.url()).pathname === "/rest/v1/addresses",
+  );
+}
+
+/** Redacted address inserts, and any updates or deletions, answered so far. */
+function addressWrites(supabase: SupabaseMocks) {
+  const handled = supabase.handled;
+  return {
+    inserts: handled.filter((entry) => entry.startsWith("POST local Supabase /rest/v1/addresses")),
+    updatesAndDeletes: handled.filter((entry) => entry.startsWith("PATCH ") || entry.startsWith("DELETE ")),
+  };
 }
 
 test.beforeEach(({ supabase }) => {
@@ -256,63 +327,21 @@ test("Saving a valid new address selects it, saves it once, and the summary deli
   await expect(addressCard(page, "Asha Rao")).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("heading", { name: "Add Shipping Address", exact: true })).toBeVisible();
 
-  // Fill in a new, valid address: Office, not the default. The name's spaces are trimmed on save.
-  await page.getByLabel("Full Name", { exact: true }).fill(" Divya Menon ");
-  await page.getByLabel("Phone Number", { exact: true }).fill("9123456780");
-  await page.getByLabel("Pincode", { exact: true }).fill("682001");
-  // By value: the select's hidden, disabled placeholder option is also labelled "Kerala".
-  await page.getByLabel("State", { exact: true }).selectOption({ value: "Kerala" });
-  await page.getByLabel("City", { exact: true }).fill("Kochi");
-  await page.getByLabel("Area", { exact: true }).fill("Fort Kochi");
-  await page.getByLabel("Street Address", { exact: true }).fill("2 Synthetic Lane");
-  await page
-    .getByRole("radiogroup", { name: "Type of address", exact: true })
-    .getByRole("radio", { name: "Office", exact: true })
-    .click();
-  await expect(page.getByRole("checkbox", { name: "Make as default address", exact: true })).toHaveAttribute(
-    "aria-checked",
-    "false",
-  );
+  // Fill in a new, valid address: Office, not the default.
+  await fillNewAddress(page);
 
   // What the database would return (registered now; the latest matching mock wins): createAddress()
   // inserts with .select("id").single(), so the reply is one object; then the list is read again.
-  const NEW_ID = "00000000-0000-4000-8000-0000000add0d";
-  const NEW_ADDRESS = addressRow({
-    id: NEW_ID,
-    full_name: "Divya Menon",
-    phone: "9123456780",
-    pincode: "682001",
-    state: "Kerala",
-    city: "Kochi",
-    area: "Fort Kochi",
-    street: "2 Synthetic Lane",
-    type: "office",
-    is_default: false,
-    created_at: "2026-01-04T00:00:00Z",
-  });
   supabase.mock({ method: "POST", path: "/rest/v1/addresses", json: { id: NEW_ID } });
   supabase.mock({ method: "GET", path: "/rest/v1/addresses", json: [ADDRESS_A, NEW_ADDRESS] });
 
-  const insert = page.waitForRequest(
-    (request) => request.method() === "POST" && new URL(request.url()).pathname === "/rest/v1/addresses",
-  );
+  const insert = nextAddressInsert(page);
   await page.getByRole("button", { name: "SAVE", exact: true }).click();
 
   // createAddress(): the trimmed form, for the guest, not the default; only its new id comes back.
   const request = await insert;
   expect(new URL(request.url()).searchParams.get("select")).toBe("id");
-  expect(request.postDataJSON()).toEqual({
-    full_name: "Divya Menon",
-    phone: "9123456780",
-    pincode: "682001",
-    state: "Kerala",
-    city: "Kochi",
-    area: "Fort Kochi",
-    street: "2 Synthetic Lane",
-    type: "office",
-    user_id: MOCK_GUEST_USER_ID,
-    is_default: false,
-  });
+  expect(request.postDataJSON()).toEqual(NEW_ADDRESS_INSERT);
 
   // Saved: the new address is selected instead of A, and the form is ready for another one.
   await expect(page.getByRole("status").filter({ hasText: "Address saved" })).toHaveText("Address saved");
@@ -325,9 +354,9 @@ test("Saving a valid new address selects it, saves it once, and the summary deli
   await expect(continueButton).toBeEnabled();
 
   // Saved exactly once, with no default-address updates (PATCH) or deletions.
-  const handled = supabase.handled;
-  expect(handled.filter((entry) => entry.startsWith("POST local Supabase /rest/v1/addresses"))).toHaveLength(1);
-  expect(handled.filter((entry) => entry.startsWith("PATCH ") || entry.startsWith("DELETE "))).toEqual([]);
+  const writes = addressWrites(supabase);
+  expect(writes.inserts).toHaveLength(1);
+  expect(writes.updatesAndDeletes).toEqual([]);
 
   // The summary delivers to the new address.
   await continueButton.click();
@@ -337,4 +366,88 @@ test("Saving a valid new address selects it, saves it once, and the summary deli
   await expect(deliverTo).toContainText("Office");
   await expect(deliverTo).toContainText("2 Synthetic Lane, Kochi, Kerala");
   await expect(deliverTo).not.toContainText("Asha Rao");
+});
+
+test("a failed save keeps the typed address, and retrying saves it once", async ({ page, supabase }) => {
+  // One saved address to start with: A, the default.
+  supabase.mock({ method: "GET", path: "/rest/v1/addresses", json: [ADDRESS_A] });
+
+  await page.goto("/checkout/address");
+  await expect(addressCard(page, "Asha Rao")).toHaveAttribute("aria-checked", "true");
+  await fillNewAddress(page);
+
+  // A temporary failure. POST requests aren't retried by postgrest-js, so this fails once, and
+  // createAddress() throws before any default-address update or list reload.
+  supabase.mock({
+    method: "POST",
+    path: "/rest/v1/addresses",
+    status: 500,
+    json: { code: "XX000", message: "synthetic: temporary failure", details: null, hint: null },
+  });
+
+  const save = page.getByRole("button", { name: "SAVE", exact: true });
+  const firstAttempt = nextAddressInsert(page);
+  await save.click();
+  expect((await firstAttempt).postDataJSON()).toEqual(NEW_ADDRESS_INSERT);
+
+  // The failure is announced (AddressError's message) and nothing is reported as saved.
+  const failure = page.getByRole("alert").filter({ hasText: "Could not save the address" });
+  await expect(failure).toHaveText("Could not save the address: synthetic: temporary failure");
+  await expect(page.getByRole("status").filter({ hasText: "Address saved" })).toHaveCount(0);
+  await expect(save).toBeEnabled();
+
+  // The form keeps exactly what was typed (the name untrimmed: only the insert is trimmed), with no
+  // field errors, ready to retry.
+  const fields = [
+    { label: "Full Name", value: " Divya Menon " },
+    { label: "Phone Number", value: "9123456780" },
+    { label: "Pincode", value: "682001" },
+    { label: "State", value: "Kerala" },
+    { label: "City", value: "Kochi" },
+    { label: "Area", value: "Fort Kochi" },
+    { label: "Street Address", value: "2 Synthetic Lane" },
+  ];
+  for (const { label, value } of fields) {
+    const field = page.getByLabel(label, { exact: true });
+    await expect(field).toHaveValue(value);
+    await expect(field).not.toHaveAttribute("aria-invalid", "true");
+  }
+  await expect(officeOption(page)).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("checkbox", { name: "Make as default address", exact: true })).toHaveAttribute(
+    "aria-checked",
+    "false",
+  );
+  await expect(page.getByRole("heading", { name: "Add Shipping Address", exact: true })).toBeVisible();
+
+  // No new address appeared and A is still the selected one.
+  await expect(addressCard(page, "Divya Menon")).toHaveCount(0);
+  await expect(addressCard(page, "Asha Rao")).toHaveAttribute("aria-checked", "true");
+
+  // The failed attempt sent one insert and nothing else.
+  const afterFailure = addressWrites(supabase);
+  expect(afterFailure.inserts).toHaveLength(1);
+  expect(afterFailure.updatesAndDeletes).toEqual([]);
+
+  // Retry: this time the insert succeeds (the latest matching mock wins) and the list is read again.
+  supabase.mock({ method: "POST", path: "/rest/v1/addresses", json: { id: NEW_ID } });
+  supabase.mock({ method: "GET", path: "/rest/v1/addresses", json: [ADDRESS_A, NEW_ADDRESS] });
+
+  const retry = nextAddressInsert(page);
+  await save.click();
+  const retryRequest = await retry;
+  expect(new URL(retryRequest.url()).searchParams.get("select")).toBe("id");
+  expect(retryRequest.postDataJSON()).toEqual(NEW_ADDRESS_INSERT);
+
+  // Saved: the error is gone, the new address is selected instead of A, and the form is reset.
+  await expect(page.getByRole("status").filter({ hasText: "Address saved" })).toHaveText("Address saved");
+  await expect(failure).toHaveCount(0);
+  await expect(addressCard(page, "Divya Menon")).toHaveAttribute("aria-checked", "true");
+  await expect(addressCard(page, "Asha Rao")).toHaveAttribute("aria-checked", "false");
+  await expect(page.getByLabel("Full Name", { exact: true })).toHaveValue("");
+  await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeEnabled();
+
+  // Two inserts in all (the failure and the retry), with no default-address updates or deletions.
+  const writes = addressWrites(supabase);
+  expect(writes.inserts).toHaveLength(2);
+  expect(writes.updatesAndDeletes).toEqual([]);
 });
