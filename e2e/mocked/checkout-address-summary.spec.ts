@@ -573,3 +573,123 @@ test("saving a new address as the default clears the old default, then makes the
     handled.filter((entry) => !entry.startsWith("GET ")),
   );
 });
+
+test("editing a saved address updates it in place and the summary delivers to the edited address", async ({
+  page,
+  supabase,
+}) => {
+  // Two saved addresses: A (the default) and B, which is chosen and then edited. B isn't the default,
+  // so updateAddress() sends only the update (no clearDefault() first).
+  supabase.mock({ method: "GET", path: "/rest/v1/addresses", json: [ADDRESS_A, ADDRESS_B] });
+
+  await page.goto("/checkout/address");
+  await addressCard(page, "Bala Iyer").click();
+  await expect(addressCard(page, "Bala Iyer")).toHaveAttribute("aria-checked", "true");
+
+  // Edit loads B into the form as saved.
+  await page.getByRole("button", { name: "Edit address for Bala Iyer", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Edit Shipping Address", exact: true })).toBeVisible();
+  const savedValues = [
+    { label: "Full Name", value: "Bala Iyer" },
+    { label: "Phone Number", value: "9876543210" },
+    { label: "Pincode", value: "560001" },
+    { label: "State", value: "Tamil Nadu" },
+    { label: "City", value: "Bengaluru" },
+    { label: "Area", value: "MG Road" },
+    { label: "Street Address", value: "1 Test Street" },
+  ];
+  for (const { label, value } of savedValues) {
+    await expect(page.getByLabel(label, { exact: true })).toHaveValue(value);
+  }
+  const addressType = page.getByRole("radiogroup", { name: "Type of address", exact: true });
+  await expect(addressType.getByRole("radio", { name: "Home", exact: true })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("checkbox", { name: "Make as default address", exact: true })).toHaveAttribute(
+    "aria-checked",
+    "false",
+  );
+
+  // Change the name (its spaces are trimmed on save), city, street and type; leave the rest.
+  await page.getByLabel("Full Name", { exact: true }).fill(" Bala Iyer K ");
+  await page.getByLabel("City", { exact: true }).fill("Chennai");
+  await page.getByLabel("Street Address", { exact: true }).fill("9 Edited Road");
+  await officeOption(page).click();
+  await expect(officeOption(page)).toHaveAttribute("aria-checked", "true");
+
+  // updateAddress(): B's row for the guest, returning its id. No POST is mocked, so an insert
+  // instead of an update would be blocked and fail the test.
+  supabase.mock({
+    method: "PATCH",
+    path: "/rest/v1/addresses",
+    match: (url) =>
+      [...url.searchParams].length === 3 &&
+      url.searchParams.get("user_id") === `eq.${MOCK_GUEST_USER_ID}` &&
+      url.searchParams.get("id") === `eq.${ADDRESS_B_ID}` &&
+      url.searchParams.get("select") === "id",
+    json: [{ id: ADDRESS_B_ID }],
+  });
+  // Then the list is read again, with B edited (same id, still not the default).
+  const UPDATED_ADDRESS_B = { ...ADDRESS_B, full_name: "Bala Iyer K", city: "Chennai", street: "9 Edited Road", type: "office" };
+  supabase.mock({ method: "GET", path: "/rest/v1/addresses", json: [ADDRESS_A, UPDATED_ADDRESS_B] });
+
+  const writes = recordAddressWrites(page);
+  await page.getByRole("button", { name: "SAVE", exact: true }).click();
+
+  // "Address updated" is shown only after the list is reloaded, so the update has been sent by now.
+  await expect(page.getByRole("status").filter({ hasText: "Address updated" })).toHaveText("Address updated");
+  expect(writes).toEqual([
+    {
+      method: "PATCH",
+      query: [
+        ["user_id", `eq.${MOCK_GUEST_USER_ID}`],
+        ["id", `eq.${ADDRESS_B_ID}`],
+        ["select", "id"],
+      ],
+      body: {
+        full_name: "Bala Iyer K",
+        phone: "9876543210",
+        pincode: "560001",
+        state: "Tamil Nadu",
+        city: "Chennai",
+        area: "MG Road",
+        street: "9 Edited Road",
+        type: "office",
+        is_default: false,
+      },
+    },
+  ]);
+
+  // The fixture answered one update and no insert or deletion.
+  const { inserts, updatesAndDeletes } = addressWrites(supabase);
+  expect(inserts).toEqual([]);
+  expect(updatesAndDeletes).toHaveLength(1);
+  expect(updatesAndDeletes[0]).toMatch(/^PATCH local Supabase \/rest\/v1\/addresses\?/);
+
+  // B was updated in place: still two cards, B's shows the edits, and none has the old name
+  // (addressCard matches "Deliver to <name>," so "Bala Iyer" doesn't match "Bala Iyer K").
+  await expect(page.getByRole("radiogroup", { name: "Saved addresses", exact: true }).getByRole("radio")).toHaveCount(2);
+  await expect(addressCard(page, "Bala Iyer K")).toHaveAccessibleName(
+    /^Deliver to Bala Iyer K, Office: 9 Edited Road, Chennai, Tamil Nadu,/,
+  );
+  await expect(addressCard(page, "Bala Iyer")).toHaveCount(0);
+  // An edit keeps the selection.
+  await expect(addressCard(page, "Bala Iyer K")).toHaveAttribute("aria-checked", "true");
+  await expect(addressCard(page, "Asha Rao")).toHaveAttribute("aria-checked", "false");
+
+  // The form is back to adding an address, with no save error in it (scoped to the form: Next's
+  // route announcer is a page-wide, empty role="alert").
+  const form = page.getByRole("region", { name: "Add Shipping Address", exact: true });
+  await expect(form).toBeVisible();
+  await expect(form.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByLabel("Full Name", { exact: true })).toHaveValue("");
+  const continueButton = page.getByRole("button", { name: "Continue", exact: true });
+  await expect(continueButton).toBeEnabled();
+
+  // The summary delivers to the edited address.
+  await continueButton.click();
+  await expect(page).toHaveURL(/\/checkout\/order-summary$/);
+  const deliverTo = page.getByRole("region", { name: "Deliver to:", exact: true });
+  await expect(deliverTo).toContainText("Bala Iyer K");
+  await expect(deliverTo).toContainText("Office");
+  await expect(deliverTo).toContainText("9 Edited Road, Chennai, Tamil Nadu");
+  await expect(deliverTo).not.toContainText("Asha Rao");
+});
