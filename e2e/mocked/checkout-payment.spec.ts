@@ -406,3 +406,39 @@ test("an order refused for an invalid customisation asks the customer to review 
     supabase.handled.filter(isPlaceOrder),
   );
 });
+
+test("an order with no order number returned shows an error and no Payment Success", async ({ page, supabase }) => {
+  await setUpPayment(page, supabase);
+  // place_order() answers 200 but with no order number (the body "null"; a real success always
+  // returns one). placeOrder() treats it as a failure with no code, so not a "review your bag" one.
+  supabase.mock({ method: "POST", path: "/rest/v1/rpc/place_order", json: null });
+
+  await page.goto("/checkout/payment");
+  const pay = page.getByRole("button", { name: "Pay using Google Pay", exact: true });
+
+  const attempt = nextPlaceOrder(page);
+  await pay.click();
+  expect((await attempt).postDataJSON()).toEqual({ ...EXPECTED_PLACE_ORDER_BODY, p_upi_app: "gpay" });
+
+  // Why, with a retry (CatalogueError). Try again isn't clicked here: this only records what
+  // the customer is shown.
+  const failure = page.getByRole("alert").filter({ hasText: "Your order couldn’t be placed." });
+  await expect(failure).toBeVisible();
+  await expect(failure).toContainText("Could not place your order: no order number was returned");
+  await expect(failure.getByRole("button", { name: "Try again", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Review your bag", exact: true })).toHaveCount(0);
+
+  // No order shown: still on Payment, nothing processing, no Payment Success, ready to pay again.
+  await expect(page.getByText("Processing payment…", { exact: true })).toHaveCount(0);
+  await expect(page).toHaveURL(/\/checkout\/payment$/);
+  await expect(page.getByText("Payment Successful", { exact: true })).toHaveCount(0);
+  await expect(pay).toBeEnabled();
+
+  // One attempt, no order read back, and nothing else was written (an unmocked write would also
+  // fail the test in the network guard).
+  expect(supabase.handled.filter(isPlaceOrder)).toHaveLength(1);
+  expect(supabase.handled.filter((handled) => handled.includes(" /rest/v1/orders"))).toEqual([]);
+  expect(supabase.handled.filter((handled) => !/^(GET|HEAD) /.test(handled))).toEqual(
+    supabase.handled.filter(isPlaceOrder),
+  );
+});
