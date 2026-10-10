@@ -306,3 +306,56 @@ test("an order the database refuses as changed asks the customer to review the b
   await expect(page).toHaveURL(/\/checkout\/payment$/);
   await expect(pay).toBeEnabled();
 });
+
+/** Whether a mocked request was answered for `POST /rest/v1/rpc/place_order` (by its redacted description). */
+const isPlaceOrder = (handled: string) => handled.startsWith("POST ") && handled.includes(" /rest/v1/rpc/place_order");
+
+test("a paid order empties the Bag and appears in My Orders, and a double-click places it once", async ({
+  page,
+  supabase,
+}) => {
+  await setUpPayment(page, supabase);
+  supabase.mock({ method: "POST", path: "/rest/v1/rpc/place_order", json: ORDER_NUMBER });
+  // Payment Success (getOrderByNumber()) and My Orders (listOrders()) read the new order, paid
+  // with Google Pay as below.
+  supabase.mock({ method: "GET", path: "/rest/v1/orders", json: [{ ...ORDER_ROW, upi_app: "gpay" }] });
+  // place_order() removes the ordered Bag rows: once it has been answered, the Bag reads back
+  // empty. Keyed on the guard's record of it (made before the response is sent), so the Bag
+  // reload after the order can't race the test.
+  supabase.mock({
+    method: "GET",
+    path: "/rest/v1/cart_items",
+    match: () => supabase.handled.some(isPlaceOrder),
+    json: [],
+  });
+
+  await page.goto("/checkout/payment");
+  const pay = page.getByRole("button", { name: "Pay using Google Pay", exact: true });
+
+  const placeOrder = nextPlaceOrder(page);
+  await pay.dblclick();
+  await expect(page.getByText("Processing payment…", { exact: true })).toBeVisible();
+  expect((await placeOrder).postDataJSON()).toEqual({ ...EXPECTED_PLACE_ORDER_BODY, p_upi_app: "gpay" });
+
+  // Payment Success shows the order the database returned.
+  await expect(page).toHaveURL(new RegExp(`/payment-success\\?order=${ORDER_NUMBER}$`), { timeout: 15_000 });
+  await expect(page.getByRole("status").filter({ hasText: "Payment Successful" })).toBeVisible();
+  await expect(page.getByText(ORDER_NUMBER, { exact: true })).toBeVisible();
+
+  // Track Order: My Orders lists the new order as in progress.
+  await page.getByRole("link", { name: "Track Order", exact: true }).click();
+  await expect(page).toHaveURL(/\/orders$/, { timeout: 15_000 });
+  const inProgress = page.getByRole("region", { name: "In Progress Order", exact: true });
+  await expect(inProgress.getByRole("article", { name: `Order ${ORDER_NUMBER}`, exact: true })).toBeVisible();
+  await expect(page.getByRole("article")).toHaveCount(1);
+
+  // The Bag was reloaded empty: the header's Bag link has no item count.
+  await expect(page.getByRole("link", { name: /^Bag\b/ })).toHaveAccessibleName("Bag");
+
+  // The double-click placed one order, and nothing else was written (an unmocked write would
+  // also fail the test in the network guard).
+  expect(supabase.handled.filter(isPlaceOrder)).toHaveLength(1);
+  expect(supabase.handled.filter((handled) => !/^(GET|HEAD) /.test(handled))).toEqual(
+    supabase.handled.filter(isPlaceOrder),
+  );
+});
