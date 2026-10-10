@@ -479,3 +479,43 @@ test("Payment Success shows an error when the order can't be loaded, and Try aga
   // Only reads: nothing was written (an unmocked write would also fail the test in the network guard).
   expect(supabase.handled.filter((handled) => !/^(GET|HEAD) /.test(handled))).toEqual([]);
 });
+
+test("Payment Success for an order that can't be found goes to Home without showing success", async ({
+  page,
+  supabase,
+}) => {
+  // Records, before the app loads, whether Payment Success's "Payment Successful" status is ever
+  // added to the page (so "never shown" doesn't rely on checking only after the redirect).
+  await page.addInitScript(() => {
+    const seen = () =>
+      [...document.querySelectorAll('[role="status"]')].some((el) => el.textContent?.includes("Payment Successful"));
+    new MutationObserver(() => {
+      if (seen()) (window as Window & { e2eSuccessShown?: boolean }).e2eSuccessShown = true;
+    }).observe(document, { childList: true, subtree: true, characterData: true });
+  });
+
+  // getOrderByNumber() uses .maybeSingle(): an empty list becomes null (no such order).
+  supabase.mock({ method: "GET", path: "/rest/v1/orders", json: [] });
+  // Home's reads after the redirect, as in home-guest.spec.ts: no profile, brands or products.
+  supabase.mock({ method: "GET", path: "/rest/v1/profiles", json: [] });
+  supabase.mock({ method: "GET", path: "/rest/v1/brands", json: [] });
+  supabase.mock({ method: "GET", path: "/rest/v1/products", json: [] });
+
+  const orderLookup = page.waitForRequest(
+    (request) => request.method() === "GET" && new URL(request.url()).pathname === "/rest/v1/orders",
+  );
+  await page.goto(`/payment-success?order=${ORDER_NUMBER}`);
+  // The order was looked up by its number.
+  expect(new URL((await orderLookup).url()).searchParams.get("order_number")).toBe(`eq.${ORDER_NUMBER}`);
+
+  // Sent to Home (the longer timeout covers its first compile on the dev server).
+  await expect(page).toHaveURL(/\/$/, { timeout: 15_000 });
+  await expect(page.getByRole("heading", { level: 1, name: "Hey Guest 👋", exact: true })).toBeVisible();
+
+  // Payment Successful was never shown, and isn't now.
+  await expect(page.getByText("Payment Successful", { exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => (window as Window & { e2eSuccessShown?: boolean }).e2eSuccessShown)).toBeUndefined();
+
+  // Only reads: nothing was written (an unmocked write would also fail the test in the network guard).
+  expect(supabase.handled.filter((handled) => !/^(GET|HEAD) /.test(handled))).toEqual([]);
+});
