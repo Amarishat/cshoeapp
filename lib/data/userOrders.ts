@@ -36,21 +36,72 @@ export const REVIEW_BAG_CODE = "55000";
 export const REVIEW_BAG_CODES: readonly string[] = [REVIEW_BAG_CODE, "22023"];
 
 /**
+ * placeOrder() couldn't tell whether the order was placed: the database may
+ * have committed it even though no order number came back (a lost
+ * connection, a timeout, a gateway error, an unexpected error, or "No
+ * selected items in the bag", which is also what a repeat of an order that
+ * went through gets). Neither success nor failure should be claimed.
+ */
+export class UncertainOrderError extends OrderError {
+  constructor(reason: string, code?: string) {
+    super("confirm your order", { message: reason, code });
+    this.name = "UncertainOrderError";
+  }
+}
+
+/**
+ * place_order()'s own refusals: each is raised by the function itself, which
+ * rolls the whole order back, so nothing was ordered. "Address not found"
+ * (P0002) is one too, but P0002 is matched with its message, since "No
+ * selected items in the bag" shares the code and is uncertain.
+ */
+const REFUSAL_CODES: readonly string[] = ["28000", REVIEW_BAG_CODE, "22023"];
+
+/** How long to wait for place_order() before treating the outcome as uncertain. */
+export const PLACE_ORDER_TIMEOUT_MS = 20_000;
+
+/**
+ * Outside production builds, localStorage[PLACE_ORDER_TIMEOUT_KEY] (a whole
+ * number of ms) replaces PLACE_ORDER_TIMEOUT_MS, so tests can use a short one.
+ */
+export const PLACE_ORDER_TIMEOUT_KEY = "cs-dev-place-order-timeout-ms";
+
+function placeOrderTimeoutMs(): number {
+  if (process.env.NODE_ENV !== "production") {
+    try {
+      const override = Number(localStorage.getItem(PLACE_ORDER_TIMEOUT_KEY));
+      if (Number.isInteger(override) && override > 0) return override;
+    } catch {
+      // Storage unavailable: the default.
+    }
+  }
+  return PLACE_ORDER_TIMEOUT_MS;
+}
+
+/**
  * Places the order for the guest's selected Bag items, delivered to
  * `addressId`, paid with `upiApp` (the payment itself is simulated).
  * `expectedTotal` is the total the customer was shown: the database refuses
  * (REVIEW_BAG_CODE) if what it is about to charge differs, or if a selected
  * item isn't one the checkout could show. Returns the database's order
- * number (e.g. "OD10000000001"). Throws if the database refused or the
- * request failed; in that case nothing was ordered.
+ * number (e.g. "OD10000000001").
+ *
+ * Throws OrderError when the database refused (nothing was ordered), and
+ * UncertainOrderError when the outcome is unknown. It is never retried here:
+ * the request is given up after the timeout, but that doesn't cancel the
+ * database transaction, which may still commit.
  */
 export async function placeOrder(addressId: string, upiApp: UpiAppId, expectedTotal: number): Promise<string> {
   await ensureGuestSession();
-  const { data, error } = await getSupabaseClient().rpc("place_order", {
-    p_address_id: addressId,
-    p_upi_app: upiApp,
-    p_expected_total: expectedTotal,
-  });
+  const timeoutMs = placeOrderTimeoutMs();
+  const signal = AbortSignal.timeout(timeoutMs);
+  const { data, error, status } = await getSupabaseClient()
+    .rpc("place_order", {
+      p_address_id: addressId,
+      p_upi_app: upiApp,
+      p_expected_total: expectedTotal,
+    })
+    .abortSignal(signal);
   if (error?.code === "22023") {
     // "Invalid customisation" and friends: say which kind of item and what to do.
     throw new OrderError("place your order", {
@@ -59,9 +110,26 @@ export async function placeOrder(addressId: string, upiApp: UpiAppId, expectedTo
       code: error.code,
     });
   }
-  if (error) throw new OrderError("place your order", error);
+  if (error) {
+    const code = error.code ?? "";
+    if (REFUSAL_CODES.includes(code) || (code === "P0002" && error.message === "Address not found")) {
+      throw new OrderError("place your order", error);
+    }
+    // postgrest-js reports a failed or aborted request as status 0 (code ""), and a response
+    // whose body isn't a database error (empty, or a gateway's page) with no code: its body
+    // isn't shown.
+    const reason = signal.aborted
+      ? `no response within ${timeoutMs / 1000} second${timeoutMs === 1000 ? "" : "s"}`
+      : status === 0
+        ? "the connection to the server was lost"
+        : !error.code
+          ? `the server didn’t send a usable response (HTTP ${status})`
+          : (error.message ?? "").trim() || `the server reported an error without details (HTTP ${status})`;
+    throw new UncertainOrderError(reason, error.code);
+  }
   if (typeof data !== "string" || !data) {
-    throw new OrderError("place your order", { message: "no order number was returned" });
+    // The function returned without refusing, so the order was probably placed.
+    throw new UncertainOrderError("no order number was returned");
   }
   return data;
 }

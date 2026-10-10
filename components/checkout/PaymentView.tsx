@@ -11,7 +11,7 @@ import { loadBagCatalogue } from "@/lib/data/bagCatalogue";
 import { DEFAULT_UPI_APP, paymentMethods, upiApps } from "@/lib/data/paymentMethods";
 import { listAddresses } from "@/lib/data/userAddresses";
 import { isStaleDesign } from "@/lib/customizationCheck";
-import { OrderError, placeOrder, REVIEW_BAG_CODES } from "@/lib/data/userOrders";
+import { OrderError, placeOrder, REVIEW_BAG_CODES, UncertainOrderError } from "@/lib/data/userOrders";
 import { computeBagTotals, isSelected } from "@/lib/pricing";
 import { useBagStore } from "@/lib/store/bag";
 import { useCheckoutStore } from "@/lib/store/checkout";
@@ -84,8 +84,13 @@ export function PaymentView() {
 function PaymentContents({ catalog, address }: { catalog: Record<string, BagProduct>; address: Address }) {
   const router = useRouter();
   const bagItems = useBagStore((s) => s.items);
-  // Why the last attempt failed; `reviewBag` when trying again would fail the same way.
-  const [orderError, setOrderError] = useState<{ message: string; reviewBag: boolean } | null>(null);
+  // Why the last attempt failed: `reviewBag` when trying again would fail the same way, and
+  // `uncertain` when it may have been placed after all (see UncertainOrderError).
+  const [orderError, setOrderError] = useState<{
+    message: string;
+    kind: "retry" | "reviewBag" | "uncertain";
+  } | null>(null);
+  const uncertain = orderError?.kind === "uncertain";
 
   const [upiOpen, setUpiOpen] = useState(true);
   const [upiApp, setUpiApp] = useState<UpiAppId>(DEFAULT_UPI_APP);
@@ -93,6 +98,17 @@ function PaymentContents({ catalog, address }: { catalog: Record<string, BagProd
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => () => clearTimeout(timer.current), []);
+
+  // After an uncertain outcome the Bag's copy may be out of date (the order may have removed
+  // its rows). It is reloaded when leaving Payment, not here: with no selected items left, the
+  // checkout guard would send this page to /bag before the customer saw why.
+  const reloadBagOnLeave = useRef(false);
+  useEffect(
+    () => () => {
+      if (reloadBagOnLeave.current) void useBagStore.getState().refresh();
+    },
+    [],
+  );
 
   // Only selected items with a catalogue product can be ordered (as in Order Summary).
   const orderable = bagItems.some((item) => isSelected(item) && catalog[item.productId]);
@@ -111,7 +127,8 @@ function PaymentContents({ catalog, address }: { catalog: Record<string, BagProd
   const totals = computeBagTotals(bagItems, catalog);
 
   function pay() {
-    if (processing || !orderable || blocked) return;
+    // Not after an uncertain outcome: the order may already have been placed.
+    if (processing || !orderable || blocked || uncertain) return;
     setProcessing(true);
     setOrderError(null);
     timer.current = setTimeout(() => void submitOrder(), PROCESSING_MS);
@@ -121,8 +138,9 @@ function PaymentContents({ catalog, address }: { catalog: Record<string, BagProd
    * After the simulated payment: the database prices the selected Bag rows,
    * creates the order and removes those rows in one transaction. It is told
    * the total shown here and refuses if it would charge anything else. Only
-   * a successful order goes to Payment Success; on failure nothing was
-   * ordered and the Bag is unchanged.
+   * a successful order goes to Payment Success. When the database refused,
+   * nothing was ordered and the Bag is unchanged; when the outcome is
+   * uncertain, Pay stays disabled and the customer is sent to My Orders.
    */
   async function submitOrder() {
     try {
@@ -132,9 +150,15 @@ function PaymentContents({ catalog, address }: { catalog: Record<string, BagProd
       router.replace(`/payment-success?order=${encodeURIComponent(orderNumber)}`);
     } catch (error) {
       setProcessing(false);
+      const isUncertain = error instanceof UncertainOrderError;
+      if (isUncertain) reloadBagOnLeave.current = true;
       setOrderError({
         message: error instanceof Error ? error.message : String(error),
-        reviewBag: error instanceof OrderError && REVIEW_BAG_CODES.includes(error.code ?? ""),
+        kind: isUncertain
+          ? "uncertain"
+          : error instanceof OrderError && REVIEW_BAG_CODES.includes(error.code ?? "")
+            ? "reviewBag"
+            : "retry",
       });
     }
   }
@@ -173,7 +197,28 @@ function PaymentContents({ catalog, address }: { catalog: Record<string, BagProd
 
       {orderError && (
         <div className="mt-6">
-          {orderError.reviewBag ? (
+          {orderError.kind === "uncertain" ? (
+            // Same look as CatalogueError: neither success nor failure is claimed, and no retry.
+            <div role="alert" className="mx-gutter rounded-[15px] bg-surface px-4 py-4">
+              <p className="font-medium">We couldn’t confirm your order</p>
+              <p className="mt-1 text-[15px]">It may have been placed. Check My Orders before paying again.</p>
+              <p className="mt-1 text-[15px] text-ink/60 [overflow-wrap:anywhere]">{orderError.message}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link
+                  href="/orders"
+                  className="inline-flex h-10 items-center rounded-full bg-black px-5 text-[15px] font-medium text-white"
+                >
+                  View My Orders
+                </Link>
+                <Link
+                  href="/bag"
+                  className="inline-flex h-10 items-center rounded-full border border-border bg-white px-5 text-[15px] font-medium"
+                >
+                  Review your bag
+                </Link>
+              </div>
+            </div>
+          ) : orderError.kind === "reviewBag" ? (
             // Same look as CatalogueError, but "Review your bag" instead of a retry that would fail again.
             <div role="alert" className="mx-gutter rounded-[15px] bg-surface px-4 py-4">
               <p className="font-medium">Your order couldn’t be placed.</p>
@@ -205,7 +250,7 @@ function PaymentContents({ catalog, address }: { catalog: Record<string, BagProd
                 selected={upiApp}
                 onSelect={setUpiApp}
                 onPay={pay}
-                disabled={processing || blocked}
+                disabled={processing || blocked || uncertain}
               />
             )}
           </PaymentMethodRow>

@@ -41,7 +41,9 @@ export type { BrowserContext, Locator, Page, Request, Response, Route } from "@p
  * proxy, launch, service-worker and connection options are exactly that safety configuration.
  *
  * Tests add mocks with `supabase.mock(...)`; the latest matching mock wins. A write is only
- * answered if a test mocks it explicitly. Redirects (3xx, Location) cannot be mocked.
+ * answered if a test mocks it explicitly. Redirects (3xx, Location) cannot be mocked. A mock can
+ * also fail the request like a dropped connection (`abort`) or answer late (`delayMs`); either
+ * way nothing is sent to the network.
  */
 
 /** Fake guest user id used by the planted session and the default mocks. Not a real user. */
@@ -62,6 +64,10 @@ export type SupabaseMock = {
   json?: unknown;
   /** Extra response headers (e.g. content-range for counts). A Location header is refused. */
   headers?: Record<string, string>;
+  /** Fail the request like a dropped connection instead of answering it (no status, json or headers). */
+  abort?: boolean;
+  /** Wait this long (ms, at most MAX_MOCK_DELAY_MS) before answering or aborting, like a slow server. */
+  delayMs?: number;
 };
 
 export type SupabaseMocks = {
@@ -69,6 +75,8 @@ export type SupabaseMocks = {
   mock(mock: SupabaseMock): void;
   /** Redacted descriptions of every request answered by a mock so far (for assertions). */
   readonly handled: readonly string[];
+  /** Resolves once no mock is still being answered (e.g. one with `delayMs`). */
+  idle(): Promise<void>;
 };
 
 type Options = {
@@ -224,6 +232,20 @@ const CORS_HEADERS = {
   "access-control-allow-headers": "*",
   "access-control-expose-headers": "content-range, x-total-count, content-location",
 };
+
+/** Longest allowed `delayMs`: the fixture waits for delayed mocks before finishing the test. */
+const MAX_MOCK_DELAY_MS = 10_000;
+
+/** Throws for an abort mock that also sets a response, or a delay out of range. */
+function assertAbortAndDelay(mock: SupabaseMock) {
+  if (mock.abort && (mock.status !== undefined || mock.json !== undefined || mock.headers !== undefined)) {
+    throw new Error("supabase.mock(): an abort mock cannot also set status, json or headers.");
+  }
+  const delay = mock.delayMs;
+  if (delay !== undefined && (!Number.isInteger(delay) || delay < 0 || delay > MAX_MOCK_DELAY_MS)) {
+    throw new Error(`supabase.mock(): delayMs must be a whole number from 0 to ${MAX_MOCK_DELAY_MS}.`);
+  }
+}
 
 /** Throws for a mock the browser could follow as a redirect (a redirect hop is never routed). */
 function assertNotRedirect(mock: SupabaseMock) {
@@ -400,7 +422,11 @@ async function installNetworkGuard(context: BrowserContext, options: Options) {
         const mock = mocks.findLast((m) => m.method === method && m.path === url.pathname && (!m.match || m.match(url)));
         if (mock) {
           handled.push(describe(method, url, bodyBytes, supabaseOrigin));
-          action = () => fulfillMock(route, mock);
+          action = async () => {
+            if (mock.delayMs) await new Promise((resolve) => setTimeout(resolve, mock.delayMs));
+            // "failed": the browser sees a network error (the fetch rejects); nothing was sent.
+            await (mock.abort ? route.abort("failed") : fulfillMock(route, mock));
+          };
         } else {
           const label = isPotentiallyMutating(method, url) ? "Blocked unmocked Supabase WRITE" : "Blocked unmocked Supabase read";
           record(`${label}: ${describe(method, url, bodyBytes, supabaseOrigin)}`);
@@ -455,11 +481,13 @@ async function installNetworkGuard(context: BrowserContext, options: Options) {
     );
   }
 
+  /** Waits until no route handler is running (including ones started while waiting). */
+  async function settle() {
+    while (inFlight.size) await Promise.allSettled([...inFlight]);
+  }
+
   /** Runs once the test body and afterEach hooks are done. Returns every recorded violation. */
   async function finish(): Promise<string[]> {
-    const settle = async () => {
-      while (inFlight.size) await Promise.allSettled([...inFlight]);
-    };
     await settle();
     // Close the test's pages so nothing more can start (timers, beacons, late fetches), then wait
     // for whatever their closing triggered.
@@ -477,11 +505,13 @@ async function installNetworkGuard(context: BrowserContext, options: Options) {
     api: {
       mock: (mock: SupabaseMock) => {
         assertNotRedirect(mock);
+        assertAbortAndDelay(mock);
         mocks.push(mock);
       },
       get handled() {
         return [...handled];
       },
+      idle: settle,
     } satisfies SupabaseMocks,
     finish,
   };

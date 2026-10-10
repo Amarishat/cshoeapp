@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Request, type SupabaseMocks } from "../support/mocked-test";
+import { expect, test, type Locator, type Page, type Request, type SupabaseMocks } from "../support/mocked-test";
 
 /*
  * Checkout · Payment for a guest with one selected, customised Bag item. Paying is simulated: after
@@ -228,10 +228,41 @@ function nextPlaceOrder(page: Page): Promise<Request> {
 /** What place_order() must be sent for this checkout: the chosen address and app, and the shown total. */
 const EXPECTED_PLACE_ORDER_BODY = { p_address_id: ADDRESS_ID, p_upi_app: "phonepe", p_expected_total: EXPECTED_TOTAL };
 
-test("A failed order shows why, keeps the checkout, and Try again places it", async ({ page, supabase }) => {
+/**
+ * An uncertain outcome (UncertainOrderError): the order may have been placed. "We couldn’t confirm
+ * your order" with why (`reason`), View My Orders and Review your bag, no retry, Pay disabled, no
+ * success, and one place_order() call as the only write, with no order lookup.
+ */
+async function expectUncertainOutcome(page: Page, supabase: SupabaseMocks, pay: Locator, reason: string) {
+  const uncertain = page.getByRole("alert").filter({ hasText: "We couldn’t confirm your order" });
+  await expect(uncertain).toBeVisible();
+  await expect(uncertain).toContainText("It may have been placed. Check My Orders before paying again.");
+  await expect(uncertain).toContainText(`Could not confirm your order: ${reason}`);
+  await expect(uncertain.getByRole("link", { name: "View My Orders", exact: true })).toHaveAttribute("href", "/orders");
+  await expect(uncertain.getByRole("link", { name: "Review your bag", exact: true })).toHaveAttribute("href", "/bag");
+  // Neither failure nor success is claimed, and paying again waits.
+  await expect(page.getByRole("button", { name: "Try again", exact: true })).toHaveCount(0);
+  await expect(page.getByText("Your order couldn’t be placed.", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Processing payment…", { exact: true })).toHaveCount(0);
+  await expect(page).toHaveURL(/\/checkout\/payment$/);
+  await expect(page.getByText("Payment Successful", { exact: true })).toHaveCount(0);
+  await expect(pay).toBeDisabled();
+  // One attempt (never retried), no order read back, and nothing else written (an unmocked write
+  // would also fail the test in the network guard).
+  expect(supabase.handled.filter(isPlaceOrder)).toHaveLength(1);
+  expect(supabase.handled.filter((handled) => handled.includes(" /rest/v1/orders"))).toEqual([]);
+  expect(supabase.handled.filter((handled) => !/^(GET|HEAD) /.test(handled))).toEqual(
+    supabase.handled.filter(isPlaceOrder),
+  );
+}
+
+test("an unexpected database error can't confirm the order: no retry, and Pay stays disabled", async ({
+  page,
+  supabase,
+}) => {
   await setUpPayment(page, supabase);
-  // A temporary failure (not one of place_order()'s "review your bag" refusals). POST requests
-  // aren't retried by postgrest-js, so this fails once.
+  // Not one of place_order()'s own refusals, so the outcome is uncertain. POST requests aren't
+  // retried by postgrest-js, and the app doesn't retry either.
   supabase.mock({
     method: "POST",
     path: "/rest/v1/rpc/place_order",
@@ -245,36 +276,12 @@ test("A failed order shows why, keeps the checkout, and Try again places it", as
   await expect(phonePe).toHaveAttribute("aria-checked", "true");
   const pay = page.getByRole("button", { name: "Pay using PhonePe", exact: true });
 
-  const firstAttempt = nextPlaceOrder(page);
+  const attempt = nextPlaceOrder(page);
   await pay.click();
-  const firstBody: unknown = (await firstAttempt).postDataJSON();
-  expect(firstBody).toEqual(EXPECTED_PLACE_ORDER_BODY);
+  expect((await attempt).postDataJSON()).toEqual(EXPECTED_PLACE_ORDER_BODY);
 
-  // Why, with a retry (CatalogueError); still on Payment, ready to pay again with the same choices.
-  const failure = page.getByRole("alert").filter({ hasText: "Your order couldn’t be placed." });
-  await expect(failure).toBeVisible();
-  await expect(failure).toContainText("Could not place your order: synthetic: temporary failure");
-  const tryAgain = failure.getByRole("button", { name: "Try again", exact: true });
-  await expect(tryAgain).toBeVisible();
-  await expect(page.getByText("Processing payment…", { exact: true })).toHaveCount(0);
-  await expect(page).toHaveURL(/\/checkout\/payment$/);
-  await expect(pay).toBeEnabled();
+  await expectUncertainOutcome(page, supabase, pay, "synthetic: temporary failure");
   await expect(phonePe).toHaveAttribute("aria-checked", "true");
-  await expect(page.getByRole("link", { name: "Review your bag", exact: true })).toHaveCount(0);
-
-  // The next attempt succeeds (registered now; the latest matching mock wins), and Payment Success
-  // reads the order back.
-  supabase.mock({ method: "POST", path: "/rest/v1/rpc/place_order", json: ORDER_NUMBER });
-  supabase.mock({ method: "GET", path: "/rest/v1/orders", json: [ORDER_ROW] });
-
-  const secondAttempt = nextPlaceOrder(page);
-  await tryAgain.click();
-  // Same address, app and total: the checkout was kept.
-  expect((await secondAttempt).postDataJSON()).toEqual(firstBody);
-
-  await expect(page).toHaveURL(new RegExp(`/payment-success\\?order=${ORDER_NUMBER}$`), { timeout: 15_000 });
-  await expect(page.getByRole("status").filter({ hasText: "Payment Successful" })).toBeVisible();
-  await expect(page.getByText(ORDER_NUMBER, { exact: true })).toBeVisible();
 });
 
 test("an order the database refuses as changed asks the customer to review the bag", async ({ page, supabase }) => {
@@ -407,10 +414,13 @@ test("an order refused for an invalid customisation asks the customer to review 
   );
 });
 
-test("an order with no order number returned shows an error and no Payment Success", async ({ page, supabase }) => {
+test("an order with no order number returned can't be confirmed and shows no Payment Success", async ({
+  page,
+  supabase,
+}) => {
   await setUpPayment(page, supabase);
   // place_order() answers 200 but with no order number (the body "null"; a real success always
-  // returns one). placeOrder() treats it as a failure with no code, so not a "review your bag" one.
+  // returns one). It returned without refusing, so the order was probably placed: uncertain.
   supabase.mock({ method: "POST", path: "/rest/v1/rpc/place_order", json: null });
 
   await page.goto("/checkout/payment");
@@ -420,27 +430,7 @@ test("an order with no order number returned shows an error and no Payment Succe
   await pay.click();
   expect((await attempt).postDataJSON()).toEqual({ ...EXPECTED_PLACE_ORDER_BODY, p_upi_app: "gpay" });
 
-  // Why, with a retry (CatalogueError). Try again isn't clicked here: this only records what
-  // the customer is shown.
-  const failure = page.getByRole("alert").filter({ hasText: "Your order couldn’t be placed." });
-  await expect(failure).toBeVisible();
-  await expect(failure).toContainText("Could not place your order: no order number was returned");
-  await expect(failure.getByRole("button", { name: "Try again", exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Review your bag", exact: true })).toHaveCount(0);
-
-  // No order shown: still on Payment, nothing processing, no Payment Success, ready to pay again.
-  await expect(page.getByText("Processing payment…", { exact: true })).toHaveCount(0);
-  await expect(page).toHaveURL(/\/checkout\/payment$/);
-  await expect(page.getByText("Payment Successful", { exact: true })).toHaveCount(0);
-  await expect(pay).toBeEnabled();
-
-  // One attempt, no order read back, and nothing else was written (an unmocked write would also
-  // fail the test in the network guard).
-  expect(supabase.handled.filter(isPlaceOrder)).toHaveLength(1);
-  expect(supabase.handled.filter((handled) => handled.includes(" /rest/v1/orders"))).toEqual([]);
-  expect(supabase.handled.filter((handled) => !/^(GET|HEAD) /.test(handled))).toEqual(
-    supabase.handled.filter(isPlaceOrder),
-  );
+  await expectUncertainOutcome(page, supabase, pay, "no order number was returned");
 });
 
 test("Payment Success shows an error when the order can't be loaded, and Try again shows it", async ({
@@ -518,4 +508,216 @@ test("Payment Success for an order that can't be found goes to Home without show
 
   // Only reads: nothing was written (an unmocked write would also fail the test in the network guard).
   expect(supabase.handled.filter((handled) => !/^(GET|HEAD) /.test(handled))).toEqual([]);
+});
+
+/*
+ * Outcomes where the order may already exist (UncertainOrderError), and P0002, whose meaning
+ * depends on its message.
+ */
+
+test("a 504 with an empty body from place_order can't confirm the order", async ({ page, supabase }) => {
+  await setUpPayment(page, supabase);
+  // A gateway timeout with no body: the database may or may not have committed the order.
+  // postgrest-js doesn't retry a POST, and reads the empty body as an error with no code.
+  supabase.mock({ method: "POST", path: "/rest/v1/rpc/place_order", status: 504 });
+
+  await page.goto("/checkout/payment");
+  const pay = page.getByRole("button", { name: "Pay using Google Pay", exact: true });
+
+  const attempt = nextPlaceOrder(page);
+  await pay.click();
+  expect((await attempt).postDataJSON()).toEqual({ ...EXPECTED_PLACE_ORDER_BODY, p_upi_app: "gpay" });
+
+  // The empty body is explained, with the status, rather than shown as nothing.
+  await expectUncertainOutcome(page, supabase, pay, "the server didn’t send a usable response (HTTP 504)");
+});
+
+test("place_order's P0002 'No selected items in the bag' can't confirm the order", async ({ page, supabase }) => {
+  await setUpPayment(page, supabase);
+  // What a repeat gets after an earlier call already ordered (and removed) the selected Bag rows,
+  // but also what a selection changed elsewhere gets: neither success nor failure is proven.
+  supabase.mock({
+    method: "POST",
+    path: "/rest/v1/rpc/place_order",
+    status: 400,
+    json: { code: "P0002", message: "No selected items in the bag", details: null, hint: null },
+  });
+
+  await page.goto("/checkout/payment");
+  const pay = page.getByRole("button", { name: "Pay using Google Pay", exact: true });
+
+  const attempt = nextPlaceOrder(page);
+  await pay.click();
+  expect((await attempt).postDataJSON()).toEqual({ ...EXPECTED_PLACE_ORDER_BODY, p_upi_app: "gpay" });
+
+  await expectUncertainOutcome(page, supabase, pay, "No selected items in the bag");
+});
+
+test("place_order's P0002 'Address not found' is a refusal: Try again places the order", async ({
+  page,
+  supabase,
+}) => {
+  await setUpPayment(page, supabase);
+  // place_order() checks the address first and raises this before ordering anything: a definite
+  // refusal, though it shares P0002 with "No selected items in the bag".
+  supabase.mock({
+    method: "POST",
+    path: "/rest/v1/rpc/place_order",
+    status: 400,
+    json: { code: "P0002", message: "Address not found", details: null, hint: null },
+  });
+
+  await page.goto("/checkout/payment");
+  const pay = page.getByRole("button", { name: "Pay using Google Pay", exact: true });
+
+  const firstAttempt = nextPlaceOrder(page);
+  await pay.click();
+  const firstBody: unknown = (await firstAttempt).postDataJSON();
+  expect(firstBody).toEqual({ ...EXPECTED_PLACE_ORDER_BODY, p_upi_app: "gpay" });
+
+  // Why, with a retry (CatalogueError); still on Payment, ready to pay again.
+  const failure = page.getByRole("alert").filter({ hasText: "Your order couldn’t be placed." });
+  await expect(failure).toBeVisible();
+  await expect(failure).toContainText("Could not place your order: Address not found");
+  const tryAgain = failure.getByRole("button", { name: "Try again", exact: true });
+  await expect(tryAgain).toBeVisible();
+  await expect(page.getByText("We couldn’t confirm your order", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "View My Orders", exact: true })).toHaveCount(0);
+  await expect(page.getByText("Processing payment…", { exact: true })).toHaveCount(0);
+  await expect(page).toHaveURL(/\/checkout\/payment$/);
+  await expect(pay).toBeEnabled();
+
+  // The next attempt succeeds (registered now; the latest matching mock wins), and Payment Success
+  // reads the order back.
+  supabase.mock({ method: "POST", path: "/rest/v1/rpc/place_order", json: ORDER_NUMBER });
+  supabase.mock({ method: "GET", path: "/rest/v1/orders", json: [{ ...ORDER_ROW, upi_app: "gpay" }] });
+
+  const secondAttempt = nextPlaceOrder(page);
+  await tryAgain.click();
+  // Same address, app and total: the checkout was kept.
+  expect((await secondAttempt).postDataJSON()).toEqual(firstBody);
+
+  await expect(page).toHaveURL(new RegExp(`/payment-success\\?order=${ORDER_NUMBER}$`), { timeout: 15_000 });
+  await expect(page.getByRole("status").filter({ hasText: "Payment Successful" })).toBeVisible();
+  await expect(page.getByText(ORDER_NUMBER, { exact: true })).toBeVisible();
+  // Two attempts, both place_order(), and nothing else written.
+  expect(supabase.handled.filter(isPlaceOrder)).toHaveLength(2);
+  expect(supabase.handled.filter((handled) => !/^(GET|HEAD) /.test(handled))).toEqual(
+    supabase.handled.filter(isPlaceOrder),
+  );
+});
+
+test("a dropped connection to place_order can't confirm the order", async ({ page, supabase }) => {
+  await setUpPayment(page, supabase);
+  // The request fails like a dropped connection (the fixture's abort; nothing is sent): the
+  // database may or may not have received it.
+  supabase.mock({ method: "POST", path: "/rest/v1/rpc/place_order", abort: true });
+
+  await page.goto("/checkout/payment");
+  const pay = page.getByRole("button", { name: "Pay using Google Pay", exact: true });
+
+  const attempt = nextPlaceOrder(page);
+  await pay.click();
+  expect((await attempt).postDataJSON()).toEqual({ ...EXPECTED_PLACE_ORDER_BODY, p_upi_app: "gpay" });
+
+  await expectUncertainOutcome(page, supabase, pay, "the connection to the server was lost");
+});
+
+test("place_order with no response before the timeout can't confirm the order", async ({ page, supabase }) => {
+  // A short timeout instead of 20 seconds (lib/data/userOrders.ts: PLACE_ORDER_TIMEOUT_KEY, read
+  // outside production builds only).
+  await page.addInitScript(() => {
+    try {
+      window.localStorage.setItem("cs-dev-place-order-timeout-ms", "500");
+    } catch {
+      // Storage unavailable (e.g. about:blank): nothing to plant.
+    }
+  });
+  await setUpPayment(page, supabase);
+  // The server would answer with an order, but only after the app has given up waiting: the
+  // timeout must not be taken as failure, and the late answer can't reach the app.
+  supabase.mock({ method: "POST", path: "/rest/v1/rpc/place_order", delayMs: 3_000, json: ORDER_NUMBER });
+
+  await page.goto("/checkout/payment");
+  const pay = page.getByRole("button", { name: "Pay using Google Pay", exact: true });
+
+  const attempt = nextPlaceOrder(page);
+  const givenUp = page.waitForEvent(
+    "requestfailed",
+    (request) => request.method() === "POST" && new URL(request.url()).pathname === "/rest/v1/rpc/place_order",
+  );
+  await pay.click();
+  expect((await attempt).postDataJSON()).toEqual({ ...EXPECTED_PLACE_ORDER_BODY, p_upi_app: "gpay" });
+  // The browser abandoned the request (the app's timeout), before any answer.
+  await givenUp;
+
+  await expectUncertainOutcome(page, supabase, pay, "no response within 0.5 seconds");
+
+  // Once the delayed mock has finished answering (with an order number), nothing changed: the
+  // abandoned request's late answer didn't reach the app.
+  await supabase.idle();
+  await expectUncertainOutcome(page, supabase, pay, "no response within 0.5 seconds");
+});
+
+for (const [label, message] of [
+  ["an empty", ""],
+  ["a whitespace-only", "   "],
+] as const) {
+  test(`an unexpected database error with ${label} message can't confirm the order and says why`, async ({
+    page,
+    supabase,
+  }) => {
+    await setUpPayment(page, supabase);
+    // A coded error (not one of place_order()'s own refusals) that explains nothing.
+    supabase.mock({
+      method: "POST",
+      path: "/rest/v1/rpc/place_order",
+      status: 500,
+      json: { code: "XX000", message, details: null, hint: null },
+    });
+
+    await page.goto("/checkout/payment");
+    const pay = page.getByRole("button", { name: "Pay using Google Pay", exact: true });
+
+    const attempt = nextPlaceOrder(page);
+    await pay.click();
+    expect((await attempt).postDataJSON()).toEqual({ ...EXPECTED_PLACE_ORDER_BODY, p_upi_app: "gpay" });
+
+    // Still uncertain, with a reason and the status instead of an empty one.
+    await expectUncertainOutcome(page, supabase, pay, "the server reported an error without details (HTTP 500)");
+  });
+}
+
+test("after an uncertain outcome, View My Orders shows the order and the Bag is reloaded", async ({
+  page,
+  supabase,
+}) => {
+  await setUpPayment(page, supabase);
+  supabase.mock({ method: "POST", path: "/rest/v1/rpc/place_order", status: 504 });
+
+  await page.goto("/checkout/payment");
+  const pay = page.getByRole("button", { name: "Pay using Google Pay", exact: true });
+  const attempt = nextPlaceOrder(page);
+  await pay.click();
+  await attempt;
+  const uncertain = page.getByRole("alert").filter({ hasText: "We couldn’t confirm your order" });
+  await expect(uncertain).toBeVisible();
+
+  // The order did go through: My Orders lists it, and the Bag's ordered row is gone.
+  // Registered now; the latest matching mock wins.
+  supabase.mock({ method: "GET", path: "/rest/v1/orders", json: [{ ...ORDER_ROW, upi_app: "gpay" }] });
+  supabase.mock({ method: "GET", path: "/rest/v1/cart_items", json: [] });
+
+  await uncertain.getByRole("link", { name: "View My Orders", exact: true }).click();
+  await expect(page).toHaveURL(/\/orders$/, { timeout: 15_000 });
+  const inProgress = page.getByRole("region", { name: "In Progress Order", exact: true });
+  await expect(inProgress.getByRole("article", { name: `Order ${ORDER_NUMBER}`, exact: true })).toBeVisible();
+  // Leaving Payment reloaded the Bag (it was loaded once, with the item): no item count is left.
+  await expect(page.getByRole("link", { name: /^Bag\b/ })).toHaveAccessibleName("Bag");
+
+  // Still one attempt, and nothing else written.
+  expect(supabase.handled.filter(isPlaceOrder)).toHaveLength(1);
+  expect(supabase.handled.filter((handled) => !/^(GET|HEAD) /.test(handled))).toEqual(
+    supabase.handled.filter(isPlaceOrder),
+  );
 });
