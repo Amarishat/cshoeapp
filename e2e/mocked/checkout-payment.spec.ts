@@ -442,3 +442,40 @@ test("an order with no order number returned shows an error and no Payment Succe
     supabase.handled.filter(isPlaceOrder),
   );
 });
+
+test("Payment Success shows an error when the order can't be loaded, and Try again shows it", async ({
+  page,
+  supabase,
+}) => {
+  // getOrderByNumber() fails. 500, not 503/520: postgrest-js retries a GET on those itself, which
+  // would delay the error. The Bag and wishlist reads use the fixture's empty defaults.
+  supabase.mock({
+    method: "GET",
+    path: "/rest/v1/orders",
+    status: 500,
+    json: { code: "XX000", message: "synthetic load failure", details: null, hint: null },
+  });
+
+  await page.goto(`/payment-success?order=${ORDER_NUMBER}`);
+
+  // Why, with a retry (CatalogueError); no redirect and no success shown.
+  const loadError = page.getByRole("alert").filter({ hasText: "Couldn’t load your order." });
+  await expect(loadError).toBeVisible();
+  await expect(loadError).toContainText(`Could not load order ${ORDER_NUMBER}: synthetic load failure`);
+  const tryAgain = loadError.getByRole("button", { name: "Try again", exact: true });
+  await expect(tryAgain).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/payment-success\\?order=${ORDER_NUMBER}$`));
+  await expect(page.getByText("Payment Successful", { exact: true })).toHaveCount(0);
+
+  // The next read succeeds (registered now; the latest matching mock wins).
+  supabase.mock({ method: "GET", path: "/rest/v1/orders", json: [ORDER_ROW] });
+  await tryAgain.click();
+
+  await expect(page.getByRole("status").filter({ hasText: "Payment Successful" })).toBeVisible();
+  await expect(page.getByText(ORDER_NUMBER, { exact: true })).toBeVisible();
+  await expect(loadError).toHaveCount(0);
+  await expect(page).toHaveURL(new RegExp(`/payment-success\\?order=${ORDER_NUMBER}$`));
+
+  // Only reads: nothing was written (an unmocked write would also fail the test in the network guard).
+  expect(supabase.handled.filter((handled) => !/^(GET|HEAD) /.test(handled))).toEqual([]);
+});
