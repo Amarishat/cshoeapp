@@ -359,3 +359,50 @@ test("a paid order empties the Bag and appears in My Orders, and a double-click 
     supabase.handled.filter(isPlaceOrder),
   );
 });
+
+test("an order refused for an invalid customisation asks the customer to review the bag", async ({
+  page,
+  supabase,
+}) => {
+  await setUpPayment(page, supabase);
+  // place_order()'s 22023 refusal (migration 023: a customised item whose part or colour is gone).
+  supabase.mock({
+    method: "POST",
+    path: "/rest/v1/rpc/place_order",
+    status: 400,
+    json: { code: "22023", message: "Invalid customisation", details: null, hint: null },
+  });
+
+  await page.goto("/checkout/payment");
+  const pay = page.getByRole("button", { name: "Pay using Google Pay", exact: true });
+
+  const attempt = nextPlaceOrder(page);
+  await pay.click();
+  expect((await attempt).postDataJSON()).toEqual({ ...EXPECTED_PLACE_ORDER_BODY, p_upi_app: "gpay" });
+
+  // Why, in placeOrder()'s words for 22023 (not the database's), and the way forward: review the
+  // Bag, since trying again as-is would be refused the same way.
+  const failure = page.getByRole("alert").filter({ hasText: "Your order couldn’t be placed." });
+  await expect(failure).toBeVisible();
+  await expect(failure).toContainText(
+    "Could not place your order: a customised item in your bag uses a colour or part that’s no longer available. " +
+      "Recreate or remove it in your bag, then try again",
+  );
+  await expect(failure).not.toContainText("Invalid customisation");
+  await expect(failure.getByRole("link", { name: "Review your bag", exact: true })).toHaveAttribute("href", "/bag");
+  await expect(page.getByRole("button", { name: "Try again", exact: true })).toHaveCount(0);
+
+  // No order: still on Payment, nothing processing, no Payment Success, and no order read back.
+  await expect(page.getByText("Processing payment…", { exact: true })).toHaveCount(0);
+  await expect(page).toHaveURL(/\/checkout\/payment$/);
+  await expect(page.getByText("Payment Successful", { exact: true })).toHaveCount(0);
+  await expect(pay).toBeEnabled();
+  expect(supabase.handled.filter((handled) => handled.includes(" /rest/v1/orders"))).toEqual([]);
+
+  // One attempt, and nothing else was written (an unmocked write would also fail the test in the
+  // network guard).
+  expect(supabase.handled.filter(isPlaceOrder)).toHaveLength(1);
+  expect(supabase.handled.filter((handled) => !/^(GET|HEAD) /.test(handled))).toEqual(
+    supabase.handled.filter(isPlaceOrder),
+  );
+});
