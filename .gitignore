@@ -45,3 +45,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# 3D shoe optimisation: generated visual-baseline renders (scripts/shoe-baseline.mjs)
+/shoe-baseline*/
+
+# 3D shoe optimisation: local-only intermediate models (rebuildable with scripts/optimize-shoe*.mjs)
+/public/models/cshoe-airforce-v2.glb
+/public/models/cshoe-airforce-v3.glb
