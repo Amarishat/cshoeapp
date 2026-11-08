@@ -185,6 +185,23 @@ export interface CartItem {
   selected?: boolean;
 }
 
+/**
+ * A design the customer saved for later ("My Designs", public.saved_designs).
+ * Owned by the current (guest) user; adding it to the Bag copies its
+ * customization onto a new Bag item, so the two never change each other.
+ */
+export interface SavedDesign {
+  id: string;
+  productId: string;
+  /** The customer's own name for it; null when they didn't give one. */
+  name: string | null;
+  /** Part id → colour id, as on a customised Bag item; never empty. */
+  customization: CustomizationSelection;
+  /** ISO timestamps. */
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type AddressType = "home" | "office" | "other";
 
 /** A saved delivery address (Figma Address 1:3396). */

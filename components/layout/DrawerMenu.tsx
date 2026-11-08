@@ -33,7 +33,7 @@ const items: DrawerItem[] = [
   { label: "Orders", href: "/orders", image: "orders", width: 19, height: 19 },
   { label: "Limited Editions", href: "/limited-edition", image: "limited-editions", width: 20, height: 19 },
   { label: "Community", icon: "community", iconClassName: "size-[22px]" },
-  { label: "Saved", icon: "bookmark", iconClassName: "size-6" },
+  { label: "Saved", href: "/designs", icon: "bookmark", iconClassName: "size-6" },
   { label: "Rewards", icon: "rewards", iconClassName: "size-6" },
   { label: "Settings", href: "/settings", image: "settings", width: 22, height: 22 },
   { label: "Help", icon: "help", iconClassName: "size-6" },

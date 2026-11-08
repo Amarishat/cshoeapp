@@ -1,4 +1,5 @@
-import { CUSTOMISATION_UNAVAILABLE_MESSAGE, designMatches, STALE_DESIGN_MESSAGE } from "@/lib/customizationCheck";
+import { designMatches } from "@/lib/customizationCheck";
+import { currentDesignProblem } from "@/lib/data/designCheck";
 import { CatalogueDataError, getCustomizationConfig } from "@/lib/data/supabaseCatalog";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { ensureGuestSession } from "@/lib/supabase/guestSession";
@@ -214,21 +215,12 @@ export async function prepareBuyNowItem(item: Pick<CartItem, "productId" | "size
  * Refuses a design that no longer fits the product's current customiser (a
  * part or colour removed since it was saved), with a message the customer can
  * act on. The design itself is never changed. place_order() checks the same
- * rule; this just says so before the Bag, not at payment.
+ * rule; this just says so before the Bag, not at payment. (The rule itself is
+ * shared with saved designs: see currentDesignProblem.)
  */
 async function assertDesignCurrent(action: string, productId: string, design: CustomizationSelection) {
-  let config: Awaited<ReturnType<typeof getCustomizationConfig>>;
-  try {
-    config = await getCustomizationConfig(productId);
-  } catch (error) {
-    // A broken customiser setup: the shoe can't be customised at the moment.
-    if (error instanceof CatalogueDataError) throw new CartError(action, { message: CUSTOMISATION_UNAVAILABLE_MESSAGE });
-    throw error;
-  }
-  // No customiser, or switched off in admin (is_customizable).
-  if (!config || !config.customizable) throw new CartError(action, { message: CUSTOMISATION_UNAVAILABLE_MESSAGE });
-  const options = { partIds: config.parts.map((p) => p.id), colourIds: config.colours.map((c) => c.id) };
-  if (!designMatches(design, options)) throw new CartError(action, { message: STALE_DESIGN_MESSAGE });
+  const problem = await currentDesignProblem(productId, design);
+  if (problem) throw new CartError(action, { message: problem });
 }
 
 async function updateRows(action: string, values: Record<string, unknown>, ids: string[] | "all") {

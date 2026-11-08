@@ -21,22 +21,26 @@ export async function generateMetadata({
 /**
  * Customizer — Figma frame 1:6606. The customisation config is loaded from
  * Supabase by CustomizerPageView. With `?item=<cart item id>` (from the Bag's
- * Edit link) it edits that Bag item's design instead of adding a new one.
+ * Edit link) it edits that Bag item's design instead of adding a new one; with
+ * `?design=<saved design id>` (from My Designs) it opens that saved design.
+ * `item` wins if both are given.
  */
 export default async function CustomisePage({
   params,
   searchParams,
 }: PageProps<"/products/[slug]/customise">) {
   const { slug } = await params;
-  const { item } = await searchParams;
+  const { item, design } = await searchParams;
   const page = CUSTOMIZER_PAGES.find((p) => p.slug === slug);
   if (!page) notFound();
+  const cartItemId = typeof item === "string" ? item : null;
 
   return (
     <CustomizerPageView
       slug={page.slug}
       title={page.title}
-      cartItemId={typeof item === "string" ? item : null}
+      cartItemId={cartItemId}
+      designId={cartItemId === null && typeof design === "string" ? design : null}
     />
   );
 }

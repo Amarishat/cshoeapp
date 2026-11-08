@@ -16,10 +16,12 @@ export function CustomizerPageView({
   slug,
   title,
   cartItemId = null,
+  designId = null,
 }: {
   slug: string;
   title: string;
   cartItemId?: string | null;
+  designId?: string | null;
 }) {
   const { state, retry } = useCatalogueLoad(loadCustomizerPage, slug);
   const config = state.status === "ready" ? state.data : null;
@@ -42,7 +44,7 @@ export function CustomizerPageView({
       {/* Figma 1:6686: full-width #CCC line at 70% under the header. */}
       <hr className="mt-[11px] border-border/70" />
 
-      {config && <CustomizerView config={config} cartItemId={cartItemId} />}
+      {config && <CustomizerView config={config} cartItemId={cartItemId} designId={designId} />}
 
       {state.status === "loading" && (
         <div aria-busy="true" aria-label="Loading customiser" className="animate-pulse px-gutter">
